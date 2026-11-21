@@ -1,92 +1,150 @@
 # MayDay
 
-**MayDay** is a real-time emergency calling, community-verified disaster awareness, official government alert, and neighborhood utility outage platform — localized to **Patiala · Thapar Institute (TIET)** (`30.3564, 76.3647`) and adaptable anywhere via live GPS.
+**MayDay** is an emergency calling, community-verified disaster awareness, neighborhood utility outage check, and official government alert platform — localized to **Patiala · Thapar Institute (TIET)** (`30.3564, 76.3647`) and adaptable anywhere via live GPS.
 
-It ships in **two separate forms**:
-1. **Installable Web PWA** — pure HTML, standard CSS (zero frameworks), vanilla JavaScript, and an optional zero-dependency Python 3 backend.
-2. **Standalone Android App (`.apk`) with Native Home Screen Widgets** — an independent Kotlin Android project inside `android/` with pre-filled emergency dialing and live-synced home screen widgets.
+MayDay is built as **two separate applications**:
+1. **MayDay Web PWA** — an installable Progressive Web App hosted on GitHub Pages that works in any mobile or desktop browser.
+2. **MayDay Android App (`.apk`)** — a standalone native Kotlin Android app (`android/`) with **two native Android Home Screen Widgets** and automatic offline fallback.
 
-**Zero machine learning · Zero social media scraping · Zero fake seed disasters.**
+> **Core Philosophy:** Zero machine learning · Zero social media scraping · Zero fake seed disasters · Emergency calling first, community verification second.
 
 - **Live Web PWA:** https://namanbuildsstuff.github.io/Mayday/
-- **Android APK Releases:** https://github.com/NamanBuildsStuff/Mayday/releases
+- **Android APK Downloads:** https://github.com/NamanBuildsStuff/Mayday/releases (or the latest run under the **Actions** tab)
 
 ---
 
-## Web PWA Features
+## Core Functions
 
-### 1. Minimalist Live Map & Location Controls
-- **Home Map Peek:** Live Carto dark basemap preview right on the Home screen showing your location pin, live Patiala weather telemetry, and active alerts. Tap anywhere to expand the full interactive disaster map.
-- **Full Disaster Map:** Source filter pills (`All`, `Govt`, `Verified`, `Pending`), GPS recenter, and slide-in incident inspector.
-- **Location Switching:** One-tap live GPS detection or manual selection across 14 Patiala / TIET sectors.
+Both the Web PWA and the Android app provide the complete MayDay feature set:
 
-### 2. Six-Tile Icon-First Emergency Dialer
-| Tile | Number / Action | Behavior |
+### 1. Six-Tile Icon-First Emergency Dialer
+| Tile | Helpline / Action | What It Does |
 | :--- | :--- | :--- |
-| **Fire** | `101` | Initiates call immediately, locks GPS in background, and pings nearby devices to verify. |
-| **Collapse** | `112` | Initiates call immediately, locks GPS in background, and pings nearby devices to verify. |
-| **Medical** | `108` + Hospitals | Opens a list of **7 real Patiala / Thapar hospitals** sorted by Haversine distance with direct phone numbers, 1-tap Call, and Google Maps directions. **Private by default** (no automatic verification pings), with an opt-in **"Push Alert to Nearby Users"** option. |
-| **Police** | `112` / `100` | **State-aware**: automatically selects the right Police helpline across 14 Indian states via GPS or the state selector (`PB`, `CH`, `HR`, `DL`, `HP`, `UP`, `MH`, `RJ`, `GJ`, `KA`, `TN`, `WB`, `KL`, `TS`). |
-| **Other** | `112` | Prompts *"What is the emergency?"* (with quick chips like *Gas Leak*, *Road Accident*, *Fallen Tree / Wire*, *Trapped in Lift*) before calling `112` and alerting nearby users. |
-| **Contact (ICE)** | Personal | First tap saves a private emergency contact (name + phone) on-device in `localStorage`. Every tap after calls them directly without broadcasting publicly. Includes a top-right pencil button to edit or remove anytime. |
+| **Fire** | `101` | Immediately dials `101`, locks your GPS in the background, and pings nearby devices for verification. |
+| **Collapse** | `112` | Immediately dials `112`, locks your GPS in the background, and pings nearby devices for verification. |
+| **Medical** | `108` + Hospitals | Lists **7 real hospitals near Patiala / Thapar** sorted by live distance (Haversine formula) with real phone numbers, 1-tap Call, and Google Maps directions. **Private by default** (no automatic verification pings), with an opt-in **"Push Alert to Nearby Users"** option. |
+| **Police** | `112` / `100` | **State-aware:** automatically chooses the right Police helpline across 14 Indian states using GPS or the manual state selector (`PB`, `CH`, `HR`, `DL`, `HP`, `UP`, `MH`, `RJ`, `GJ`, `KA`, `TN`, `WB`, `KL`, `TS`). |
+| **Other** | `112` | Asks *"What is the emergency?"* (with quick chips like *Gas Leak*, *Road Accident*, *Fallen Tree / Wire*, *Trapped in Lift*) before dialing `112` and alerting nearby users. |
+| **Contact (ICE)** | Personal | First tap prompts you to save a private Emergency Contact (name + phone number). Every tap after calls them directly without broadcasting publicly. Includes a top-right pencil icon to edit or remove the contact anytime. |
 
-### 3. Neighborhood Utility Outage Checks
-- One-tap **Electricity Outage** and **Water Outage** checks ping neighbors to ask if the outage is affecting them (`Yes, Out` / `No, Working`).
-- Confirmed outages appear as active alerts and include a **`Resolved?`** button so neighbors can mark power or water as restored across all connected devices.
+### 2. Neighborhood Utility Outage Checks
+- Tap **Electricity Outage** or **Water Outage** to ping nearby residents and ask whether the outage is happening in their area (`Yes, Out` / `No, Working`).
+- Confirmed outages display as active alerts and include a **`Resolved?`** button so neighbors can mark power or water as restored across all connected devices.
 
-### 4. Official Government Alerts (Changeable Radius)
-- Live official feeds default to a **10 km** scope around your location and can be switched anytime (`5 km`, `10 km`, `25 km`, `100 km`, `500 km`, or `All`).
-- Filtering stays synced across Home, Verify, Map, Mini-Map, and Telemetry.
+### 3. Minimalist Home Map Peek & Full Disaster Map
+- **Home Map Peek:** Shows a dark minimalist live Carto map directly on the Home screen with your current pin, live Patiala weather pill, and active incident markers. Tap to open the full map.
+- **Full Interactive Map:** Filter pins by `All`, `Govt`, `Verified`, or `Pending`, recenter on GPS, and inspect incident details or actions in the side/mobile inspector.
 
-### 5. Deterministic Peer Verification & Citizen Safety Boundaries
-- **Zero AI / Zero Scraping:** Only two data sources ever appear on the map — Official Government/Scientific APIs and direct User Reports.
-- **Deterministic Verification:** `2` nearby confirmations → **Community Verified**; `3` false-alarm flags → auto-dismissed.
-- **Demo Reset Controls:** Individual report delete icons and a **Clear All** button remove test reports across all connected devices in real time.
-- **Strict Safety Rules:**
-  - **Official Government Alerts (Major Crises):** Strictly **Alert Only** — citizen volunteering is disabled in both UI and backend.
-  - **Minor Local User Reports:** Optional minimal safe-distance help (e.g., clearing lanes for fire engines) is gated behind an explicit **"Reminder: You Are Endangering Yourself"** warning modal and required acknowledgment checkbox.
+### 4. Official Government Alerts (Changeable Scope)
+- Real-time alerts pulled directly from official government and scientific feeds (never seeded with mock tragedies).
+- Defaults to a **10 km** radius around your location and can be switched anytime (`5 km`, `10 km`, `25 km`, `100 km`, `500 km`, or `All`).
 
----
-
-## Live Official Data Sources
-
-No placeholder or mock disasters are seeded anywhere in the app:
-
-| Source | Data Provided | Availability |
-| :--- | :--- | :--- |
-| **USGS Earthquake Hazards API** | Live M2.5+ earthquakes near Patiala / North India | GitHub Pages & Local Server |
-| **NASA EONET v3** | Live satellite-tracked wildfires, floods, and severe storms | GitHub Pages & Local Server |
-| **Open-Meteo Weather Station** | Live Patiala · Thapar (`30.3564, 76.3647`) weather & severe advisories | GitHub Pages & Local Server |
-| **NDMA SACHET (Govt. of India)** | Official India CAP RSS disaster advisories | Local Server (`server.py`) |
+### 5. Deterministic Peer Verification & Citizen Safety Rules
+- **No ML / No Scraping:** Only two sources ever appear on the map — Official Government/Scientific APIs and direct User Reports.
+- **Deterministic Consensus:** `2` nearby confirmations → **Community Verified**; `3` false-alarm flags → auto-dismissed.
+- **Demo Reset Controls:** Delete individual reports or use **Clear All** to wipe test reports across all connected devices in real time.
+- **Strict Safety Boundaries:**
+  - **Official Government Alerts (Major Crises):** Strictly **Alert Only** — citizen volunteering is disabled.
+  - **Minor Local User Incidents:** Optional minimal safe-distance support (such as keeping lanes clear for emergency vehicles) is gated behind a mandatory **"Reminder: You Are Endangering Yourself"** modal and explicit checkbox acknowledgment.
 
 ---
 
-## Multi-Device Real-Time Sync
+## Using the Web PWA
 
-MayDay automatically selects the right real-time transport based on how it is hosted:
+The **Web PWA** runs directly in Chrome, Safari, Edge, or Firefox with zero app store installation required.
 
-- **GitHub Pages (Static HTTPS):** Uses Server-Sent Events via `ntfy.sh` so an emergency call, outage check, vote, resolution, or delete syncs across connected phones in `< 300ms`.
-  - Append `?room=<name>` to the URL (e.g., `https://namanbuildsstuff.github.io/Mayday/?room=demo`) on all devices to isolate a demo room.
-- **Local Backend (`server.py`):** Uses built-in Python SSE (`/api/events`), SQLite persistence (`mayday.db`), and the NDMA SACHET RSS proxy.
+### How to Open & Install
+1. Visit https://namanbuildsstuff.github.io/Mayday/ on your phone or laptop.
+2. **Install on Android (Chrome):** Tap the install icon in the top bar (or browser menu → **Install app / Add to Home screen**).
+3. **Install on iPhone (Safari):** Tap **Share** → **Add to Home Screen**.
+4. Tap the **Bell icon** in the top-right bar to enable live browser alert notifications.
+
+### Using the PWA Day-to-Day
+- **Set Location:** Tap the crosshair icon on the Home map peek to lock your live GPS, or pick a Patiala sector from the dropdown.
+- **Adjust Govt Alert Scope:** Use the radius selector (`10 km` default) next to **Govt Alerts** or in the **Verify** tab.
+- **Multi-Device Live Sync:** Open the PWA on two or more phones — pressing an emergency button, reporting an outage, confirming, resolving, or deleting syncs across devices in `< 300ms` via Server-Sent Events (`ntfy.sh` relay).
+  - Tip: Add `?room=myteam` to the URL (e.g. `https://namanbuildsstuff.github.io/Mayday/?room=demo`) on all test phones for a private demo channel.
+- **Offline Support:** The Service Worker (`sw.js`) caches the app shell so the UI loads even on poor connectivity.
+
+### Running the PWA Locally with Python Backend
+Requires **Python 3** (no `pip install` or Node needed):
+```bash
+python3 server.py
+```
+Open `http://localhost:8080` on your computer or `http://<your-lan-ip>:8080` on phones on the same Wi-Fi. Local mode enables SQLite persistence (`mayday.db`), local SSE (`/api/events`), and the live **NDMA SACHET** RSS proxy.
 
 ---
 
-## Standalone Android App & Home Screen Widgets (`android/`)
+## Using the Android App (`.apk`)
 
-The `android/` folder is a **completely separate native Kotlin Android project** (`com.mayday.app`, `minSdk 24`, `targetSdk 34`) that does not modify the web PWA:
+The **Android App** is a standalone native Kotlin application in `android/` (completely separate from the web PWA files).
 
-- **Native Wrapper + Offline Fallback:** Runs MayDay in a full-screen dark obsidian WebView with native Android **GPS** and **Notification** permissions, native Google Maps opening for hospital directions, and bundled offline fallback assets (`android/app/src/main/assets/www/`).
-- **Pre-Filled Dialer (`Intent.ACTION_DIAL`):** All widget and in-app `tel:` calls open the Android dialer pre-filled with the number (pocket-dial safe, zero dangerous `CALL_PHONE` permission needed).
-- **Live JS ↔ Android Widget Sync:** A lightweight WebView bridge automatically syncs your saved **Personal Emergency Contact** and **State Police number** from `localStorage` into Android `SharedPreferences` and refreshes your widgets immediately.
-- **Two Native Home Screen Widgets:**
-  1. **MayDay Quick Dial (`4×2` resizable):** One-tap pre-filled dial tiles for **Fire (`101`)**, **Medical (`108`)**, **State Police (`112`/`100`)**, and your **Saved Emergency Contact** (or `+ Add` to open the Save Contact modal), plus quick **Hospitals** and **Map** buttons.
-  2. **MayDay Contact & 112 (`2×1` compact):** Minimal two-button bar for **`112`** and your **Saved Emergency Contact**.
+### How to Download & Install
+1. Download **`Mayday.apk`** from https://github.com/NamanBuildsStuff/Mayday/releases (or from the latest completed run under **Actions → Build MayDay Android APK → Artifacts → `Mayday-APK`**).
+2. Open `Mayday.apk` on your Android phone and allow **Install unknown apps** if prompted.
+3. Launch **MayDay** from your app drawer and allow **Location** (for live GPS + state police auto-detection) and **Notifications** when prompted.
 
-### Building the Android APK
-- **Cloud Build (Recommended — GitHub Actions):**
-  - Configured via `.github/workflows/build-apk.yml`. Every push to `android/**` (or manual run in the **Actions** tab) compiles `Mayday.apk` using JDK 17 + Gradle 8.7 and publishes it directly to **GitHub Releases** (`android-latest`) and **Actions Artifacts**.
-- **Local Build (Android Studio / Gradle):**
-  - Open the `android/` directory in Android Studio, or run `gradle assembleDebug` inside `android/` with JDK 17 and the Android SDK installed. Output: `android/app/build/outputs/apk/debug/app-debug.apk`.
+### How the Android App Differs from the PWA
+- **Pre-Filled Native Dialer (`Intent.ACTION_DIAL`):** Tapping any emergency tile, hospital number, or personal emergency contact opens Android's native phone dialer pre-filled with the number — 1 tap to place the call, preventing accidental pocket dials and requiring zero invasive `CALL_PHONE` permission.
+- **Native Google Maps Integration:** Tapping directions on any nearby hospital opens the native Google Maps app directly.
+- **Bundled Offline Fallback:** Loads the live MayDay experience when online and automatically falls back to bundled local assets (`android/app/src/main/assets/www/`) if opened with no internet connection.
+- **Android Back Button Support:** Pressing hardware/gesture Back closes open modals or returns to the Home screen before exiting the app.
+- **Native Home Screen Widgets:** Syncs your saved Personal Emergency Contact and selected State automatically to your Android Home Screen Widgets.
+
+---
+
+## Android Home Screen Widgets
+
+MayDay includes **two dark-obsidian native Android widgets** designed for instant access without even opening the app.
+
+### 1. MayDay Quick Dial (`4×2`, resizable)
+- **Header:** Left-aligned `Mayday.` brand link (opens app home) + quick **Hospitals** chip (jumps straight to the Nearby Hospitals list) + **Map** chip (opens the full live disaster map).
+- **4 Pre-Filled Dialer Tiles:**
+  - **Fire (`101`)** → opens dialer pre-filled with `101`.
+  - **Medical (`108`)** → opens dialer pre-filled with `108`.
+  - **Police (`112` / `100`)** → dynamically displays your selected state (e.g. `Police · PB`) and opens dialer pre-filled with that state's police number.
+  - **Personal Emergency Contact** → shows `+ Add` before setup (tapping jumps directly to the Save Emergency Contact modal in MayDay). Once saved, it displays your contact's name (e.g., `Mom`) and opens the dialer pre-filled with their phone number.
+
+### 2. MayDay Contact & 112 (`2×1`, compact bar)
+- Minimal two-button home screen strip for tight layouts:
+  - **Left (`112`):** Opens pre-filled dialer with `112`.
+  - **Right (Personal Contact):** Shows your saved contact's name and opens pre-filled dialer (or opens the Save Contact modal if not set yet).
+
+### How to Add & Sync Widgets
+1. Long-press an empty space on your Android home screen → tap **Widgets** → scroll to **MayDay**.
+2. Drag **MayDay Quick Dial** or **MayDay Contact & 112** onto your home screen.
+3. Whenever you save/edit your Personal Emergency Contact or change your State inside the MayDay Android app, a native JavaScript bridge (`MaydayAndroid`) saves it to Android `SharedPreferences` and refreshes all placed widgets immediately.
+
+---
+
+## What We Used to Build MayDay
+
+### Web PWA & Optional Local Backend
+- **HTML5 & Pure Standard CSS3:** Custom dark-obsidian minimalist design system with CSS custom properties — **zero CSS frameworks** (no Tailwind, no Bootstrap).
+- **Vanilla JavaScript (ES6+):** Zero frontend frameworks or bundlers; direct DOM rendering, Haversine distance calculation, `localStorage` persistence, and `EventSource` real-time updates.
+- **Leaflet.js (`1.9.4`) + Carto Dark Basemaps:** Interactive dark vector/raster map (`dark_all` for full map, `dark_nolabels` for the minimalist Home peek).
+- **Phosphor Icons + Google Fonts (`Inter` & `JetBrains Mono`):** Clean icon-first UI and tabular monospace telemetry numbers.
+- **PWA APIs:** Web App Manifest (`manifest.webmanifest`), Service Worker (`sw.js`), Geolocation API, and Web Notifications API.
+- **Real-Time Live Data & Sync:**
+  - **USGS Earthquake Hazards API** (live seismic events)
+  - **NASA EONET v3** (live satellite-tracked wildfires, storms, and floods)
+  - **Open-Meteo API** (live Patiala · Thapar weather & severe thresholds)
+  - **NDMA SACHET CAP RSS** (official Govt. of India advisories via local backend)
+  - **Server-Sent Events (SSE) + `ntfy.sh` Relay** (real-time cross-device sync on static GitHub Pages)
+- **Python 3 Standard Library (`server.py`):** Zero-dependency local HTTP/SSE server with built-in `sqlite3` (`mayday.db`) and `urllib` RSS aggregator.
+
+### Standalone Android App & Widgets
+- **Kotlin (`1.9.24`) & Android SDK (`compileSdk 34`, `targetSdk 34`, `minSdk 24`)**
+- **Gradle (`8.7`) & Android Gradle Plugin (`8.5.2`)** on **Java 17 (Temurin JDK)**
+- **AndroidX Libraries:** `androidx.core:core-ktx` (`1.13.1`) and `androidx.appcompat` (`1.7.0`)
+- **Android Native Components:**
+  - `WebView`, `WebViewClient`, `WebChromeClient` (runtime GPS & notification permission handling, `tel:` / Google Maps intent routing, offline fallback)
+  - `@JavascriptInterface` (`MaydayAndroid`) + Android `SharedPreferences` (automatic live sync between app state and native widgets)
+  - `AppWidgetProvider`, `RemoteViews`, `PendingIntent` (`FLAG_IMMUTABLE`), `Intent.ACTION_DIAL`, and native XML `<vector>` / `<shape>` drawables (adaptive launcher icon + dark obsidian widgets)
+
+### Hosting & Cloud APK Build
+- **GitHub Pages:** Hosts the live HTTPS Web PWA directly from `main`.
+- **GitHub Actions (`.github/workflows/build-apk.yml`):** Automatically compiles `Mayday.apk` in the cloud on `ubuntu-latest` (JDK 17 + Gradle 8.7) whenever `android/` changes, uploading it to **Actions Artifacts** and **GitHub Releases**.
 
 ---
 
@@ -94,52 +152,40 @@ The `android/` folder is a **completely separate native Kotlin Android project**
 
 ```text
 Mayday App/
-├── .github/workflows/build-apk.yml           # GitHub Actions cloud Android APK build & Release workflow
+├── .github/workflows/build-apk.yml           # Cloud Android APK build & Releases workflow
 ├── index.html                                # Web PWA shell (Call, Map, Verify views + modals)
 ├── styles.css                                # Pure standard minimalist dark obsidian CSS
-├── app.js                                    # Calling, hospitals, ICE contact, outages, live APIs & SSE sync
+├── app.js                                    # Dialer, hospitals, ICE contact, outages, APIs & SSE sync
 ├── manifest.webmanifest                      # PWA install manifest (standalone mode)
 ├── sw.js                                     # Service Worker for offline caching
 ├── icon.svg                                  # MayDay radar-beacon vector icon
-├── server.py                                 # Optional zero-dependency Python 3 backend (SQLite + SSE + NDMA RSS)
+├── server.py                                 # Optional zero-dependency Python 3 backend (SQLite + SSE)
 └── android/                                  # Standalone native Android APK project (separate from PWA)
     ├── settings.gradle.kts
     ├── build.gradle.kts
     ├── gradle.properties
-    ├── github-workflow-build-apk.yml         # Ready-to-use GitHub Actions cloud APK workflow
     └── app/
         ├── build.gradle.kts
         └── src/main/
             ├── AndroidManifest.xml
             ├── assets/www/                   # Bundled offline web assets
             ├── java/com/mayday/app/
-            │   ├── MainActivity.kt           # Full-screen WebView, GPS, ACTION_DIAL & widget sync bridge
+            │   ├── MainActivity.kt           # Full-screen WebView, GPS, ACTION_DIAL & widget bridge
             │   ├── MaydayPrefs.kt            # SharedPreferences store & widget refresh helpers
             │   ├── QuickDialWidgetProvider.kt   # 4×2 Emergency Quick Dial & Map/Hospital widget
             │   └── CompactSosWidgetProvider.kt  # 2×1 Compact 112 & Personal Contact widget
-            └── res/                          # Dark obsidian widget layouts, vector icons & adaptive launcher
+            └── res/                          # Dark obsidian widget layouts, vector icons & adaptive icon
 ```
 
 ---
 
-## Running Locally (Web PWA + Backend)
-
-Requires **Python 3** (no `pip install` or Node build tools required):
-
-```bash
-python3 server.py
-```
-
-Open `http://localhost:8080` in your browser, or open the printed LAN IP (`http://<your-ip>:8080`) on phones connected to the same Wi-Fi network.
-
----
-
-## Calling Mode & PWA Cache Notes
+## Configuration Notes
 
 - **Live Calling vs. Demo Safe Mode (`app.js` line 7):**
   ```js
   const DEMO_SAFE_CALL_MODE = false;
   ```
-  - `false` (current): Emergency buttons trigger native `tel:` dialing on the device.
-  - `true`: Simulates calls safely during presentations while still running GPS lock, map plotting, and live multi-device pings.
-- **Refreshing Installed PWAs:** Whenever you edit `index.html`, `styles.css`, or `app.js`, increment `CACHE_NAME` on line 1 of `sw.js` (currently `mayday-pwa-v11`) so phones pull the latest version on reload.
+  - `false` (default): Triggers real `tel:` dialing on phones.
+  - `true`: Simulates calls safely for demos while still running real GPS capture, map plotting, and multi-device verification pings.
+- **PWA Cache Refresh:** After editing `index.html`, `styles.css`, or `app.js`, bump `CACHE_NAME` on line 1 of `sw.js` (currently `mayday-pwa-v11`) so installed PWAs fetch fresh files on reload.
+- **Building the APK Locally (Optional):** Open `android/` in Android Studio or run `gradle assembleDebug` inside `android/` with JDK 17 + Android SDK installed (`android/app/build/outputs/apk/debug/app-debug.apk`).
