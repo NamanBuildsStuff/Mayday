@@ -28,8 +28,7 @@
 
   <!-- ==================== TOPBAR ==================== -->
   <header class="topbar">
-    <div class="brand-group"></div>
-      </div>
+    <div class="brand-group">
       <h1 class="brand-title">Mayday<span class="brand-title-accent">.</span></h1>
     </div>
 
@@ -206,6 +205,17 @@
               <span class="dial-tile-num">112</span>
               <span class="dial-tile-label">Other</span>
             </button>
+
+            <div class="dial-tile-wrap">
+              <button type="button" id="ice-dial-tile" class="dial-tile" onclick="handleEmergencyContactTap()" aria-label="Add Emergency Contact">
+                <span class="dial-tile-icon dial-tile-icon--contact"><i id="ice-tile-icon" class="ph-fill ph-user-plus"></i></span>
+                <span id="ice-tile-num" class="dial-tile-num dial-tile-num--contact">+ Add</span>
+                <span id="ice-tile-label" class="dial-tile-label">Contact</span>
+              </button>
+              <button type="button" id="btn-edit-ice" class="tile-edit-btn is-hidden" onclick="openEmergencyContactModal()" title="Edit emergency contact" aria-label="Edit emergency contact">
+                <i class="ph-bold ph-pencil-simple"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -513,6 +523,42 @@
         <button type="button" onclick="pushOptionalMedicalAlert()" class="btn btn--warning-outline btn--full">
           <i class="ph-bold ph-broadcast"></i>
           <span>Push Alert to Nearby Users</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 1E: PERSONAL EMERGENCY CONTACT ==================== -->
+  <div id="ice-contact-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'ice-contact-modal')">
+    <div class="modal-card animate-in" role="dialog" aria-modal="true" aria-labelledby="ice-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="ice-modal-title" class="modal-title">Save Emergency Contact</h3>
+          <p class="modal-sub">Stored privately on your device. Every tap after calls this contact directly.</p>
+        </div>
+        <button type="button" onclick="closeModal('ice-contact-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label for="ice-name-input" class="form-label">Contact Name</label>
+        <input id="ice-name-input" type="text" class="input-field" maxlength="32" placeholder="e.g., Mom, Dad, Roommate" />
+      </div>
+
+      <div class="form-group">
+        <label for="ice-phone-input" class="form-label">Phone Number</label>
+        <input id="ice-phone-input" type="tel" class="input-field" maxlength="20" placeholder="e.g., +91 98150 00000" onkeydown="if (event.key === 'Enter') saveEmergencyContact();" />
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-remove-ice" type="button" onclick="removeEmergencyContact()" class="btn btn--danger-ghost is-hidden" style="height: 38px; padding: 0 13px;">
+          <i class="ph-bold ph-trash"></i>
+          <span>Remove</span>
+        </button>
+        <button type="button" onclick="saveEmergencyContact()" class="btn btn--primary" style="flex: 1; height: 38px;">
+          <i class="ph-bold ph-check"></i>
+          <span>Save Contact</span>
         </button>
       </div>
     </div>

@@ -122,7 +122,9 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 .brand-group {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 9px;
+  flex-shrink: 0;
 }
 
 .brand-logo {
@@ -141,10 +143,12 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 .brand-logo svg { width: 17px; height: 17px; }
 
 .brand-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
+  text-align: left;
+  white-space: nowrap;
 }
 
 .brand-title-accent { color: var(--danger); }
@@ -678,6 +682,41 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 .dial-tile-icon--medical { color: var(--medical); }
 .dial-tile-icon--police { color: var(--text-primary); }
 .dial-tile-icon--other { color: var(--warning); }
+.dial-tile-icon--contact { color: var(--success); }
+
+.dial-tile-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.dial-tile-wrap .dial-tile {
+  width: 100%;
+  min-width: 0;
+}
+
+.tile-edit-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: color 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
+}
+
+.tile-edit-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background-color: var(--bg-hover);
+}
 
 /* Utility Outages 2-Tile Minimal Row */
 .outage-grid {
@@ -838,6 +877,15 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
   line-height: 1;
 }
 
+.dial-tile-num--contact {
+  font-size: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
 .dial-tile--sos .dial-tile-num { color: var(--danger); }
 
 .dial-tile-label {
@@ -845,6 +893,11 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
   font-weight: 500;
   color: var(--text-muted);
   line-height: 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
 }
 
 /* Compact Icon-Driven Alert Feed (Home & Verify) */
@@ -1460,7 +1513,7 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 @media (min-width: 640px) {
   .topbar { padding: 0 20px; }
   .home-map-card { height: 220px; }
-  .dialer-grid { grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .dialer-grid { grid-template-columns: repeat(6, 1fr); gap: 10px; }
   .dial-tile { padding: 18px 8px 15px; }
   .map-legend { display: flex; }
   .toast-container { width: auto; }

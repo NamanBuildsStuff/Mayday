@@ -10,6 +10,7 @@ const FALSE_DISMISS_THRESHOLD = 3;         // Flags needed to dismiss a false al
 const LOCAL_VOTES_KEY = 'mayday_user_votes_v2';
 const LOCAL_REPORTS_KEY = 'mayday_local_reports_v2';
 const LOCAL_LOCATION_KEY = 'mayday_user_loc_v2';
+const LOCAL_ICE_KEY = 'mayday_ice_contact_v1';
 
 // Real-time multi-device relay channel for static GitHub Pages hosting (override via ?room=myroom)
 const NTFY_TOPIC = (() => {
@@ -107,6 +108,7 @@ const state = {
   },
   userState: 'PB',             // Drives state-specific Police emergency number
   govtRadiusKm: 10,            // Default 10 km scope for Official Govt Alerts (0 = All)
+  emergencyContact: null,      // Saved personal ICE contact: { name, phone }
   officialAlerts: [],          // Live official Govt/Scientific API alerts only
   userReports: [],             // Real call-triggered user reports only
   userVotes: {},               // { reportId: 'confirmed' | 'false' }
@@ -203,6 +205,14 @@ function loadLocalPrefs() {
         state.userState = savedVotes.userState;
       }
     }
+
+    const savedIce = JSON.parse(localStorage.getItem(LOCAL_ICE_KEY) || 'null');
+    if (savedIce && typeof savedIce.phone === 'string' && savedIce.phone.trim()) {
+      state.emergencyContact = {
+        name: String(savedIce.name || 'Emergency').trim() || 'Emergency',
+        phone: savedIce.phone.trim()
+      };
+    }
   } catch (err) {
     // Ignore storage parse issues
   }
@@ -211,6 +221,11 @@ function loadLocalPrefs() {
 function saveLocalPrefs() {
   try {
     localStorage.setItem(LOCAL_LOCATION_KEY, JSON.stringify(state.userLocation));
+    if (state.emergencyContact) {
+      localStorage.setItem(LOCAL_ICE_KEY, JSON.stringify(state.emergencyContact));
+    } else {
+      localStorage.removeItem(LOCAL_ICE_KEY);
+    }
     localStorage.setItem(
       LOCAL_VOTES_KEY,
       JSON.stringify({
@@ -880,6 +895,107 @@ function callHospitalNumber(phone, name) {
       : `Dialing ${name} (${phone})...`,
     'info'
   );
+}
+
+/* --- 5.4 Personal Emergency Contact (Save First -> Direct Call Every Next Time) --- */
+function syncEmergencyContactUI() {
+  const iconEl = document.getElementById('ice-tile-icon');
+  const numEl = document.getElementById('ice-tile-num');
+  const lblEl = document.getElementById('ice-tile-label');
+  const editBtn = document.getElementById('btn-edit-ice');
+  const tileBtn = document.getElementById('ice-dial-tile');
+  if (!numEl || !lblEl) return;
+
+  if (state.emergencyContact) {
+    if (iconEl) iconEl.className = 'ph-fill ph-heart';
+    numEl.textContent = state.emergencyContact.name;
+    lblEl.textContent = state.emergencyContact.phone;
+    editBtn?.classList.remove('is-hidden');
+    tileBtn?.setAttribute('aria-label', `Call ${state.emergencyContact.name} (${state.emergencyContact.phone})`);
+  } else {
+    if (iconEl) iconEl.className = 'ph-fill ph-user-plus';
+    numEl.textContent = '+ Add';
+    lblEl.textContent = 'Contact';
+    editBtn?.classList.add('is-hidden');
+    tileBtn?.setAttribute('aria-label', 'Add Emergency Contact');
+  }
+}
+
+function handleEmergencyContactTap() {
+  if (!state.emergencyContact) {
+    openEmergencyContactModal();
+    return;
+  }
+
+  const { name, phone } = state.emergencyContact;
+  const dialHref = phone.replace(/[^\d+*#]/g, '') || phone;
+
+  if (!DEMO_SAFE_CALL_MODE) {
+    const a = document.createElement('a');
+    a.href = `tel:${dialHref}`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  showToast(
+    DEMO_SAFE_CALL_MODE
+      ? `Demo mode: Simulated call to ${name} (${phone}). No real call placed.`
+      : `Calling ${name} (${phone})...`,
+    'success'
+  );
+}
+
+function openEmergencyContactModal() {
+  const titleEl = document.getElementById('ice-modal-title');
+  const nameInput = document.getElementById('ice-name-input');
+  const phoneInput = document.getElementById('ice-phone-input');
+  const removeBtn = document.getElementById('btn-remove-ice');
+
+  if (state.emergencyContact) {
+    if (titleEl) titleEl.textContent = 'Edit Emergency Contact';
+    if (nameInput) nameInput.value = state.emergencyContact.name;
+    if (phoneInput) phoneInput.value = state.emergencyContact.phone;
+    removeBtn?.classList.remove('is-hidden');
+  } else {
+    if (titleEl) titleEl.textContent = 'Save Emergency Contact';
+    if (nameInput) nameInput.value = '';
+    if (phoneInput) phoneInput.value = '';
+    removeBtn?.classList.add('is-hidden');
+  }
+
+  document.getElementById('ice-contact-modal')?.classList.remove('is-hidden');
+  setTimeout(() => nameInput?.focus(), 70);
+}
+
+function saveEmergencyContact() {
+  const nameRaw = (document.getElementById('ice-name-input')?.value || '').trim();
+  const phoneRaw = (document.getElementById('ice-phone-input')?.value || '').trim();
+  const digits = phoneRaw.replace(/[^\d]/g, '');
+
+  if (digits.length < 3) {
+    showToast('Please enter a valid phone number.', 'warning');
+    document.getElementById('ice-phone-input')?.focus();
+    return;
+  }
+
+  state.emergencyContact = {
+    name: nameRaw || 'Emergency',
+    phone: phoneRaw
+  };
+  saveLocalPrefs();
+  syncEmergencyContactUI();
+  closeModal('ice-contact-modal');
+  showToast(`Saved ${state.emergencyContact.name} (${state.emergencyContact.phone}). Tap the Contact tile anytime to call.`, 'success');
+}
+
+function removeEmergencyContact() {
+  state.emergencyContact = null;
+  saveLocalPrefs();
+  syncEmergencyContactUI();
+  closeModal('ice-contact-modal');
+  showToast('Emergency contact removed.', 'info');
 }
 
 async function pushOptionalMedicalAlert() {
@@ -2162,6 +2278,7 @@ window.addEventListener('load', async () => {
   populateSectorSelects();
   syncRadiusSelectUI();
   syncStatePoliceUI();
+  syncEmergencyContactUI();
   updateNotifButtonUI();
   registerPWA();
   initHomeMiniMap();
@@ -2187,6 +2304,7 @@ window.addEventListener('load', async () => {
       closeModal('incoming-ping-modal');
       closeModal('other-emergency-modal');
       closeModal('medical-modal');
+      closeModal('ice-contact-modal');
       closeModal('danger-warning-modal');
     }
   });
