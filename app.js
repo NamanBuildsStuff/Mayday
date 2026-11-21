@@ -89,6 +89,9 @@ let markerGroup = null;
 let zoneGroup = null;
 let userPinGroup = null;
 
+let homeMap = null;
+let homeMarkerGroup = null;
+
 function getAllIncidents() {
   return [...state.officialAlerts, ...state.userReports];
 }
@@ -391,9 +394,9 @@ function updateWeatherAndSourceStatus() {
   if (wxEl) {
     if (state.patialaWeather) {
       const w = state.patialaWeather;
-      wxEl.textContent = `Patiala · Thapar live station: ${w.temperatureC}°C · ${w.condition} · Wind ${w.windKmh} km/h · Rain ${w.rainMm} mm`;
+      wxEl.textContent = `${w.temperatureC}°C · ${w.condition} · ${w.windKmh} km/h`;
     } else {
-      wxEl.textContent = 'Patiala · Thapar live station: offline';
+      wxEl.textContent = 'Patiala · Offline';
     }
   }
 
@@ -435,6 +438,13 @@ function switchView(view) {
       if (map) {
         map.invalidateSize();
         renderMap();
+      }
+    }, 60);
+  } else if (view === 'home') {
+    setTimeout(() => {
+      if (homeMap) {
+        homeMap.invalidateSize();
+        renderHomeMiniMap();
       }
     }, 60);
   }
@@ -1413,69 +1423,133 @@ function renderInspector() {
   `;
 }
 
+function initHomeMiniMap() {
+  const el = document.getElementById('home-mini-map');
+  if (!el || homeMap) return;
+
+  homeMap = L.map('home-mini-map', {
+    center: [state.userLocation.lat, state.userLocation.lng],
+    zoom: 12,
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    boxZoom: false,
+    keyboard: false,
+    tap: false,
+    touchZoom: false
+  });
+
+  // Minimalist dark basemap without label clutter for the Home peek
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd',
+    maxZoom: 18
+  }).addTo(homeMap);
+
+  homeMarkerGroup = L.layerGroup().addTo(homeMap);
+  renderHomeMiniMap();
+}
+
+function renderHomeMiniMap() {
+  if (!homeMap || !homeMarkerGroup) return;
+  homeMarkerGroup.clearLayers();
+
+  homeMap.setView([state.userLocation.lat, state.userLocation.lng], 12, { animate: false });
+
+  // User location dot
+  const userIcon = L.divIcon({
+    className: 'custom-user-icon',
+    html: `<div class="user-pin"></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6]
+  });
+  L.marker([state.userLocation.lat, state.userLocation.lng], { icon: userIcon, zIndexOffset: 500 }).addTo(homeMarkerGroup);
+
+  // Active incidents preview dots
+  getAllIncidents().forEach(inc => {
+    const isGovt = inc.source === 'govt_api';
+    const isPending = inc.status === 'pending';
+    const catColor = (CATEGORY_META[inc.category] || CATEGORY_META['General Emergency']).color;
+    const pinColor = isGovt ? '#ef4444' : (isPending ? '#eab308' : catColor);
+
+    const pulseHTML = isGovt || !isPending
+      ? `<div class="pin-pulse" style="background: ${pinColor};"></div>`
+      : '';
+    const coreCls = isPending ? 'pin-core pin-core--pending' : 'pin-core';
+
+    const icon = L.divIcon({
+      className: 'custom-pin-icon',
+      html: `<div class="pin-wrap">${pulseHTML}<div class="${coreCls}" style="background: ${pinColor};"></div></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12]
+    });
+    L.marker([inc.lat, inc.lng], { icon }).addTo(homeMarkerGroup);
+  });
+}
+
 /* ============================================================================
-   9. HOME & VERIFY LISTS + TELEMETRY STATS
+   9. HOME & VERIFY COMPACT ICON LISTS + TELEMETRY STATS
    ============================================================================ */
 function renderIncidentCard(inc, { showVerifyControls = false } = {}) {
   const distKm = calcDistanceKm(state.userLocation.lat, state.userLocation.lng, inc.lat, inc.lng);
   const isGovt = inc.source === 'govt_api';
-  const cardMod = isGovt ? 'incident-card--govt' : (inc.status === 'pending' ? 'incident-card--pending' : 'incident-card--verified');
+  const rowMod = isGovt ? 'compact-row--govt' : (inc.status === 'pending' ? 'compact-row--pending' : 'compact-row--verified');
+  const meta = CATEGORY_META[inc.category] || CATEGORY_META['General Emergency'];
 
-  const card = document.createElement('div');
-  card.className = `incident-card ${cardMod} animate-in`;
+  const row = document.createElement('div');
+  row.className = `compact-row ${rowMod} animate-in`;
 
-  let footerHTML = '';
+  let actionsHTML = '';
   if (isGovt) {
-    const srcLink = inc.sourceUrl
-      ? `<a href="${escapeHtml(inc.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn" style="height: 30px;"><i class="ph-bold ph-arrow-square-out"></i> Source</a>`
+    const srcBtn = inc.sourceUrl
+      ? `<a href="${escapeHtml(inc.sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn--icon" title="Official Source"><i class="ph-bold ph-arrow-square-out"></i></a>`
       : '';
-    footerHTML = `
-      <div class="alert-only-note">
-        <i class="ph-bold ph-warning-circle"></i>
-        <span>Official Alert Only — Volunteering disabled for major API crises.</span>
-      </div>
-      <div class="verify-actions">
-        <button type="button" onclick="selectIncident('${inc.id}', true)" class="btn" style="height: 30px;">
-          <i class="ph-bold ph-map-pin"></i> Map
-        </button>
-        ${srcLink}
-        <button type="button" onclick="handleOfficialHelplineClick('${escapeHtml(inc.dialedNumber || '112')}', '${escapeHtml(inc.category)}')" class="btn btn--danger" style="height: 30px;">
-          <i class="ph-bold ph-phone-call"></i> ${escapeHtml(inc.dialedNumber || '112')}
-        </button>
-      </div>
+    actionsHTML = `
+      ${srcBtn}
+      <button type="button" onclick="selectIncident('${inc.id}', true)" class="btn btn--icon" title="View on Map">
+        <i class="ph-bold ph-map-pin"></i>
+      </button>
     `;
   } else if (showVerifyControls) {
     const disabled = state.userVotes[inc.id] ? 'disabled' : '';
-    footerHTML = `
-      <div class="verify-actions">
-        <button type="button" onclick="verifyUserReport('${inc.id}', 'confirmed')" class="btn btn--success-outline" style="height: 30px;" ${disabled}>
-          <i class="ph-bold ph-check"></i> Confirm (${inc.confirmations}/${VERIFICATION_THRESHOLD})
-        </button>
-        <button type="button" onclick="verifyUserReport('${inc.id}', 'false')" class="btn" style="height: 30px;" ${disabled}>
-          <i class="ph-bold ph-x"></i> False
-        </button>
-        <button type="button" onclick="selectIncident('${inc.id}', true)" class="btn" style="height: 30px;">
-          Map
-        </button>
-      </div>
+    actionsHTML = `
+      <button type="button" onclick="verifyUserReport('${inc.id}', 'confirmed')" class="btn btn--icon btn--success-outline" title="Confirm (${inc.confirmations}/${VERIFICATION_THRESHOLD})" ${disabled}>
+        <i class="ph-bold ph-check"></i>
+      </button>
+      <button type="button" onclick="verifyUserReport('${inc.id}', 'false')" class="btn btn--icon" title="False Alarm" ${disabled}>
+        <i class="ph-bold ph-x"></i>
+      </button>
+      <button type="button" onclick="selectIncident('${inc.id}', true)" class="btn btn--icon" title="Inspect on Map">
+        <i class="ph-bold ph-map-pin"></i>
+      </button>
     `;
   }
 
-  card.innerHTML = `
-    <div class="incident-card-top">
-      <div class="badge-row">
-        ${getSourceBadge(inc)}
-        ${getCategoryBadge(inc.category)}
+  const statusTag = isGovt
+    ? 'Alert Only'
+    : (inc.status === 'verified' ? 'Verified' : `${inc.confirmations}/${VERIFICATION_THRESHOLD}`);
+
+  row.innerHTML = `
+    <div class="compact-row-left" onclick="selectIncident('${inc.id}', true)">
+      <span class="row-icon" style="color: ${isGovt ? 'var(--danger)' : meta.color};">
+        <i class="ph-fill ${meta.icon}"></i>
+      </span>
+      <div class="row-text">
+        <div class="row-title">${escapeHtml(inc.title)}</div>
+        <div class="row-meta">
+          <span>${formatDistance(distKm)}</span>
+          <span>&middot;</span>
+          <span>${formatTimeAgo(inc.timestamp)}</span>
+          <span>&middot;</span>
+          <span>${statusTag}</span>
+        </div>
       </div>
-      <span class="incident-meta">${formatDistance(distKm)} &middot; ${formatTimeAgo(inc.timestamp)}</span>
     </div>
-    <div class="incident-title">${escapeHtml(inc.title)}</div>
-    <div class="incident-meta">${escapeHtml(inc.locationName)} &middot; ${escapeHtml(inc.agency)}</div>
-    <p class="incident-desc">${escapeHtml(inc.description)}</p>
-    ${footerHTML}
+    <div class="row-actions">${actionsHTML}</div>
   `;
 
-  return card;
+  return row;
 }
 
 function renderListsAndStats() {
@@ -1490,7 +1564,6 @@ function renderListsAndStats() {
 
   const verifiedReports = userReports.filter(i => i.status === 'verified');
   const pendingReports = userReports.filter(i => i.status === 'pending');
-  const totalHelpers = userReports.reduce((sum, i) => sum + (i.minimalHelpers || 0), 0);
 
   const totalActive = govtAlerts.length + verifiedReports.length;
   document.getElementById('summary-active-num').textContent = totalActive;
@@ -1502,23 +1575,23 @@ function renderListsAndStats() {
   document.getElementById('stat-pending').textContent = pendingReports.length;
   document.getElementById('stat-devices').textContent = state.connectedDevices;
 
-  // Home — Live Official Govt API Alerts
+  // Home — Live Official Govt Alerts
   const homeGovtEl = document.getElementById('home-govt-alerts');
   homeGovtEl.innerHTML = '';
   if (govtAlerts.length === 0) {
-    homeGovtEl.innerHTML = `<div class="empty-state">All clear — no active official disaster alerts near Patiala / Northern India right now.</div>`;
+    homeGovtEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-check-circle" style="color: var(--success);"></i><span>All clear &middot; Patiala</span></div>`;
   } else {
-    govtAlerts.slice(0, 4).forEach(inc => homeGovtEl.appendChild(renderIncidentCard(inc)));
+    govtAlerts.slice(0, 3).forEach(inc => homeGovtEl.appendChild(renderIncidentCard(inc)));
   }
 
-  // Home — Pending Nearby User Reports
+  // Home — Pending Nearby Verification
   const homePendingEl = document.getElementById('home-pending-list');
   homePendingEl.innerHTML = '';
   const homeVerifyItems = pendingReports.length > 0 ? pendingReports : verifiedReports;
   if (homeVerifyItems.length === 0) {
-    homePendingEl.innerHTML = `<div class="empty-state">No user-reported emergencies near Patiala · Thapar. When someone dials an emergency number above, nearby residents will see a verification request here.</div>`;
+    homePendingEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-radar"></i><span>No nearby calls</span></div>`;
   } else {
-    homeVerifyItems.slice(0, 4).forEach(inc =>
+    homeVerifyItems.slice(0, 3).forEach(inc =>
       homePendingEl.appendChild(renderIncidentCard(inc, { showVerifyControls: true }))
     );
   }
@@ -1527,18 +1600,18 @@ function renderListsAndStats() {
   const verifyUserEl = document.getElementById('verify-user-list');
   verifyUserEl.innerHTML = '';
   if (userReports.length === 0) {
-    verifyUserEl.innerHTML = `<div class="empty-state">No real emergency call reports have been logged yet.</div>`;
+    verifyUserEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-radar"></i><span>No user reports yet</span></div>`;
   } else {
     userReports.forEach(inc =>
       verifyUserEl.appendChild(renderIncidentCard(inc, { showVerifyControls: true }))
     );
   }
 
-  // Verify View — All Live Official Govt Alerts
+  // Verify View — All Official Govt Alerts
   const verifyGovtEl = document.getElementById('verify-govt-list');
   verifyGovtEl.innerHTML = '';
   if (govtAlerts.length === 0) {
-    verifyGovtEl.innerHTML = `<div class="empty-state">All clear — no active events returned by USGS, NASA EONET, NDMA SACHET, or Open-Meteo.</div>`;
+    verifyGovtEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-check-circle" style="color: var(--success);"></i><span>All clear &middot; No active API alerts</span></div>`;
   } else {
     govtAlerts.forEach(inc => verifyGovtEl.appendChild(renderIncidentCard(inc)));
   }
@@ -1547,6 +1620,7 @@ function renderListsAndStats() {
 function refreshAll() {
   renderListsAndStats();
   renderInspector();
+  if (homeMap) renderHomeMiniMap();
   if (map) renderMap();
 }
 
@@ -1615,6 +1689,7 @@ window.addEventListener('load', async () => {
   populateSectorSelects();
   updateNotifButtonUI();
   registerPWA();
+  initHomeMiniMap();
 
   await loadUserReports();
   refreshAll();
@@ -1640,6 +1715,7 @@ window.addEventListener('load', async () => {
   });
 
   window.addEventListener('resize', () => {
+    if (homeMap) homeMap.invalidateSize();
     if (map) map.invalidateSize();
   });
 
