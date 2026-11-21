@@ -4,7 +4,7 @@
    ============================================================================ */
 
 const PATIALA_CENTER = [30.3564, 76.3647]; // Thapar Institute (TIET), Patiala
-const DEMO_SAFE_CALL_MODE = true;          // Prevents placing real 112/101/108/100/1070 calls during demos
+const DEMO_SAFE_CALL_MODE = false;          // Prevents placing real 112/101/108/100/1070 calls during demos
 const VERIFICATION_THRESHOLD = 2;          // Nearby confirmations needed to verify a user report
 const FALSE_DISMISS_THRESHOLD = 3;         // Flags needed to dismiss a false alarm
 const LOCAL_VOTES_KEY = 'mayday_user_votes_v2';
