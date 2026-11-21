@@ -211,9 +211,19 @@
           <div>
             <div class="section-header">
               <span class="section-title"><i class="ph-bold ph-seal-warning" style="color: var(--danger);"></i> Govt Alerts</span>
-              <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Refresh" style="width: 26px; height: 26px;">
-                <i class="ph-bold ph-arrows-clockwise"></i>
-              </button>
+              <div class="section-actions">
+                <select id="home-govt-radius" class="radius-select" onchange="setGovtRadius(this.value)" aria-label="Govt alert scope radius" title="Govt alert radius">
+                  <option value="5">5 km</option>
+                  <option value="10" selected>10 km</option>
+                  <option value="25">25 km</option>
+                  <option value="100">100 km</option>
+                  <option value="500">500 km</option>
+                  <option value="0">All</option>
+                </select>
+                <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Refresh" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-arrows-clockwise"></i>
+                </button>
+              </div>
             </div>
             <div id="home-govt-alerts" class="alert-list"></div>
           </div>
@@ -221,9 +231,14 @@
           <div>
             <div class="section-header">
               <span class="section-title"><i class="ph-bold ph-seal-check" style="color: var(--warning);"></i> Verify Nearby</span>
-              <button type="button" onclick="switchView('verify')" class="btn btn--icon" title="All verification requests" style="width: 26px; height: 26px;">
-                <i class="ph-bold ph-arrow-right"></i>
-              </button>
+              <div class="section-actions">
+                <button type="button" onclick="clearAllDemoReports()" class="btn btn--icon btn--danger-ghost" title="Clear all demo reports" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-trash"></i>
+                </button>
+                <button type="button" onclick="switchView('verify')" class="btn btn--icon" title="All verification requests" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-arrow-right"></i>
+                </button>
+              </div>
             </div>
             <div id="home-pending-list" class="alert-list"></div>
           </div>
@@ -282,7 +297,12 @@
           <div>
             <div class="section-header">
               <span class="section-title"><i class="ph-bold ph-users"></i> User Reports</span>
-              <span class="micro-label">2/2 Verify</span>
+              <div class="section-actions">
+                <span class="micro-label">2/2</span>
+                <button type="button" onclick="clearAllDemoReports()" class="btn btn--icon btn--danger-ghost" title="Clear all demo reports" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-trash"></i>
+                </button>
+              </div>
             </div>
             <div id="verify-user-list" class="alert-list"></div>
           </div>
@@ -290,9 +310,19 @@
           <div>
             <div class="section-header">
               <span class="section-title"><i class="ph-bold ph-broadcast"></i> Official APIs</span>
-              <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Refresh APIs" style="width: 26px; height: 26px;">
-                <i class="ph-bold ph-arrows-clockwise"></i>
-              </button>
+              <div class="section-actions">
+                <select id="verify-govt-radius" class="radius-select" onchange="setGovtRadius(this.value)" aria-label="Official API scope radius" title="Govt alert radius">
+                  <option value="5">5 km</option>
+                  <option value="10" selected>10 km</option>
+                  <option value="25">25 km</option>
+                  <option value="100">100 km</option>
+                  <option value="500">500 km</option>
+                  <option value="0">All</option>
+                </select>
+                <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Refresh APIs" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-arrows-clockwise"></i>
+                </button>
+              </div>
             </div>
             <div id="verify-govt-list" class="alert-list"></div>
           </div>

@@ -73,10 +73,12 @@ const state = {
     lng: PATIALA_SECTORS[0].lng,
     isGPS: false
   },
+  govtRadiusKm: 10,            // Default 10 km scope for Official Govt Alerts (0 = All)
   officialAlerts: [],          // Live official Govt/Scientific API alerts only
   userReports: [],             // Real call-triggered user reports only
   userVotes: {},               // { reportId: 'confirmed' | 'false' }
   helpingIds: {},              // { reportId: true }
+  deletedIds: {},              // Track deleted demo reports so replays stay clean
   apiSources: {},
   patialaWeather: null,
   deferredInstallPrompt: null
@@ -92,8 +94,34 @@ let userPinGroup = null;
 let homeMap = null;
 let homeMarkerGroup = null;
 
+function getScopedGovtAlerts() {
+  if (!state.govtRadiusKm || state.govtRadiusKm <= 0) {
+    return [...state.officialAlerts];
+  }
+  return state.officialAlerts.filter(inc =>
+    calcDistanceKm(state.userLocation.lat, state.userLocation.lng, inc.lat, inc.lng) <= state.govtRadiusKm
+  );
+}
+
 function getAllIncidents() {
-  return [...state.officialAlerts, ...state.userReports];
+  return [...getScopedGovtAlerts(), ...state.userReports];
+}
+
+function syncRadiusSelectUI() {
+  ['home-govt-radius', 'verify-govt-radius'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (sel) sel.value = String(state.govtRadiusKm);
+  });
+}
+
+function setGovtRadius(val) {
+  const num = Number(val);
+  state.govtRadiusKm = Number.isFinite(num) && num >= 0 ? num : 10;
+  syncRadiusSelectUI();
+  saveLocalPrefs();
+  refreshAll();
+  const label = state.govtRadiusKm > 0 ? `within ${state.govtRadiusKm} km` : 'all distances';
+  showToast(`Govt alert scope set to ${label}.`, 'info');
 }
 
 function loadLocalPrefs() {
@@ -105,6 +133,10 @@ function loadLocalPrefs() {
     if (savedVotes && typeof savedVotes === 'object') {
       state.userVotes = savedVotes.votes || {};
       state.helpingIds = savedVotes.helping || {};
+      state.deletedIds = savedVotes.deleted || {};
+      if (typeof savedVotes.govtRadiusKm === 'number') {
+        state.govtRadiusKm = savedVotes.govtRadiusKm;
+      }
     }
   } catch (err) {
     // Ignore storage parse issues
@@ -116,7 +148,12 @@ function saveLocalPrefs() {
     localStorage.setItem(LOCAL_LOCATION_KEY, JSON.stringify(state.userLocation));
     localStorage.setItem(
       LOCAL_VOTES_KEY,
-      JSON.stringify({ votes: state.userVotes, helping: state.helpingIds })
+      JSON.stringify({
+        votes: state.userVotes,
+        helping: state.helpingIds,
+        deleted: state.deletedIds,
+        govtRadiusKm: state.govtRadiusKm
+      })
     );
     if (!state.backendAvailable) {
       localStorage.setItem(LOCAL_REPORTS_KEY, JSON.stringify(state.userReports));
@@ -857,6 +894,7 @@ function applyRelayEvent(evt, isLive) {
 
   if (evt.type === 'new_report' && evt.report) {
     const rep = evt.report;
+    if (state.deletedIds[rep.id]) return;
     const alreadyExists = state.userReports.some(r => r.id === rep.id);
     if (!alreadyExists) {
       upsertUserReport(rep);
@@ -932,6 +970,30 @@ function applyRelayEvent(evt, isLive) {
     if (rep._helpers[evt.helperDeviceId]) return;
     rep._helpers[evt.helperDeviceId] = true;
     rep.minimalHelpers = (rep.minimalHelpers || 0) + 1;
+    saveLocalPrefs();
+    refreshAll();
+    return;
+  }
+
+  if (evt.type === 'delete_report' && evt.id) {
+    state.deletedIds[evt.id] = true;
+    state.userReports = state.userReports.filter(r => r.id !== evt.id);
+    if (state.selectedId === evt.id) state.selectedId = null;
+    if (state.incomingPingReportId === evt.id) closeModal('incoming-ping-modal');
+    saveLocalPrefs();
+    refreshAll();
+    return;
+  }
+
+  if (evt.type === 'clear_all_reports') {
+    const cutoff = evt.ts || Date.now();
+    state.userReports.forEach(r => {
+      if ((r.timestamp || 0) <= cutoff) state.deletedIds[r.id] = true;
+    });
+    state.userReports = state.userReports.filter(r => (r.timestamp || 0) > cutoff);
+    if (!state.userReports.some(r => r.id === state.selectedId)) state.selectedId = null;
+    closeModal('incoming-ping-modal');
+    dismissActiveCallStrip();
     saveLocalPrefs();
     refreshAll();
   }
@@ -1036,6 +1098,64 @@ function connectLiveEventStream() {
     if (state.incomingPingReportId === id) closeModal('incoming-ping-modal');
     refreshAll();
   });
+
+  eventSource.addEventListener('reports_cleared', () => {
+    state.userReports = [];
+    state.selectedId = null;
+    closeModal('incoming-ping-modal');
+    dismissActiveCallStrip();
+    refreshAll();
+  });
+}
+
+async function deleteUserReport(id) {
+  state.deletedIds[id] = true;
+  state.userReports = state.userReports.filter(r => r.id !== id);
+  if (state.selectedId === id) state.selectedId = null;
+  if (state.incomingPingReportId === id) closeModal('incoming-ping-modal');
+  if (state.lastCalledReportId === id) dismissActiveCallStrip();
+
+  if (state.backendAvailable) {
+    try {
+      await fetch(`/api/reports/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (err) {
+      // Ignore network error; already removed locally
+    }
+  } else {
+    publishRelayEvent({ type: 'delete_report', id });
+  }
+
+  saveLocalPrefs();
+  refreshAll();
+  showToast('Report removed across connected devices.', 'info');
+}
+
+async function clearAllDemoReports() {
+  if (state.userReports.length === 0) {
+    showToast('No nearby user reports to clear.', 'info');
+    return;
+  }
+
+  const nowTs = Date.now();
+  state.userReports.forEach(r => { state.deletedIds[r.id] = true; });
+  state.userReports = [];
+  state.selectedId = null;
+  closeModal('incoming-ping-modal');
+  dismissActiveCallStrip();
+
+  if (state.backendAvailable) {
+    try {
+      await fetch('/api/reports', { method: 'DELETE' });
+    } catch (err) {
+      // Ignore network error
+    }
+  } else {
+    publishRelayEvent({ type: 'clear_all_reports', ts: nowTs });
+  }
+
+  saveLocalPrefs();
+  refreshAll();
+  showToast('Cleared all nearby demo reports.', 'success');
 }
 
 /* ============================================================================
@@ -1420,6 +1540,7 @@ function renderInspector() {
 
     ${verifySectionHTML}
     ${actionBlockHTML}
+    ${!isGovt ? `<div class="inspector-block"><button type="button" onclick="deleteUserReport('${inc.id}')" class="btn btn--danger-ghost btn--full"><i class="ph-bold ph-trash"></i><span>Remove Report (Demo)</span></button></div>` : ''}
   `;
 }
 
@@ -1520,8 +1641,8 @@ function renderIncidentCard(inc, { showVerifyControls = false } = {}) {
       <button type="button" onclick="verifyUserReport('${inc.id}', 'false')" class="btn btn--icon" title="False Alarm" ${disabled}>
         <i class="ph-bold ph-x"></i>
       </button>
-      <button type="button" onclick="selectIncident('${inc.id}', true)" class="btn btn--icon" title="Inspect on Map">
-        <i class="ph-bold ph-map-pin"></i>
+      <button type="button" onclick="deleteUserReport('${inc.id}')" class="btn btn--icon btn--danger-ghost" title="Remove report (demo)">
+        <i class="ph-bold ph-trash"></i>
       </button>
     `;
   }
@@ -1553,7 +1674,7 @@ function renderIncidentCard(inc, { showVerifyControls = false } = {}) {
 }
 
 function renderListsAndStats() {
-  const govtAlerts = [...state.officialAlerts].sort((a, b) =>
+  const govtAlerts = getScopedGovtAlerts().sort((a, b) =>
     calcDistanceKm(state.userLocation.lat, state.userLocation.lng, a.lat, a.lng) -
     calcDistanceKm(state.userLocation.lat, state.userLocation.lng, b.lat, b.lng)
   );
@@ -1575,11 +1696,13 @@ function renderListsAndStats() {
   document.getElementById('stat-pending').textContent = pendingReports.length;
   document.getElementById('stat-devices').textContent = state.connectedDevices;
 
+  const scopeLabel = state.govtRadiusKm > 0 ? `within ${state.govtRadiusKm} km` : 'all regions';
+
   // Home — Live Official Govt Alerts
   const homeGovtEl = document.getElementById('home-govt-alerts');
   homeGovtEl.innerHTML = '';
   if (govtAlerts.length === 0) {
-    homeGovtEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-check-circle" style="color: var(--success);"></i><span>All clear &middot; Patiala</span></div>`;
+    homeGovtEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-check-circle" style="color: var(--success);"></i><span>All clear &middot; ${scopeLabel}</span></div>`;
   } else {
     govtAlerts.slice(0, 3).forEach(inc => homeGovtEl.appendChild(renderIncidentCard(inc)));
   }
@@ -1611,7 +1734,7 @@ function renderListsAndStats() {
   const verifyGovtEl = document.getElementById('verify-govt-list');
   verifyGovtEl.innerHTML = '';
   if (govtAlerts.length === 0) {
-    verifyGovtEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-check-circle" style="color: var(--success);"></i><span>All clear &middot; No active API alerts</span></div>`;
+    verifyGovtEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-check-circle" style="color: var(--success);"></i><span>All clear &middot; ${scopeLabel}</span></div>`;
   } else {
     govtAlerts.forEach(inc => verifyGovtEl.appendChild(renderIncidentCard(inc)));
   }
@@ -1687,6 +1810,7 @@ async function promptInstallPWA() {
 window.addEventListener('load', async () => {
   loadLocalPrefs();
   populateSectorSelects();
+  syncRadiusSelectUI();
   updateNotifButtonUI();
   registerPWA();
   initHomeMiniMap();

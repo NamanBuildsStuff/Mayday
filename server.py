@@ -547,6 +547,33 @@ class MayDayHandler(SimpleHTTPRequestHandler):
         broadcast_event("report_updated", {"report": rep})
         self.send_json(200, {"report": rep})
 
+    def do_DELETE(self):
+        parsed = urllib.parse.urlparse(self.path)
+
+        # DELETE /api/reports -> clear all demo user reports
+        if parsed.path == "/api/reports":
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("DELETE FROM user_reports")
+            conn.commit()
+            conn.close()
+            broadcast_event("reports_cleared", {"ts": int(time.time() * 1000)})
+            self.send_json(200, {"cleared": True})
+            return
+
+        # DELETE /api/reports/<id> -> delete single user report
+        m = re.match(r"^/api/reports/([A-Za-z0-9_-]+)$", parsed.path)
+        if m:
+            rep_id = m.group(1)
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("DELETE FROM user_reports WHERE id = ?", (rep_id,))
+            conn.commit()
+            conn.close()
+            broadcast_event("report_dismissed", {"id": rep_id})
+            self.send_json(200, {"deleted": True, "id": rep_id})
+            return
+
+        self.send_json(404, {"error": "Unknown endpoint"})
+
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
 

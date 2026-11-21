@@ -282,6 +282,43 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
   color: var(--warning);
 }
 
+.btn--danger-ghost:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger-border);
+  background-color: var(--danger-soft);
+}
+
+.section-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.radius-select {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+.radius-select:hover,
+.radius-select:focus {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.radius-select option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+}
+
 .btn--full { width: 100%; height: 38px; }
 
 .btn-caret {
