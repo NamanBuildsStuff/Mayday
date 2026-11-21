@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MayDay</string>
+    <string name="widget_quick_dial_label">MayDay Quick Dial</string>
+    <string name="widget_quick_dial_desc">One-tap pre-filled emergency dialer, saved personal contact, hospitals, and live disaster map.</string>
+    <string name="widget_compact_sos_label">MayDay Contact &amp; 112</string>
+    <string name="widget_compact_sos_desc">Compact bar for 112 Emergency and your saved personal emergency contact.</string>
+</resources>

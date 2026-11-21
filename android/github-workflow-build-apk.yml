@@ -1,0 +1,61 @@
+name: Build MayDay Android APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Refresh bundled offline fallback assets
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          cp index.html styles.css app.js icon.svg manifest.webmanifest android/app/src/main/assets/www/
+
+      - name: Build Android APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon
+
+      - name: Prepare Mayday.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mayday.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mayday-APK
+          path: Mayday.apk
+
+      - name: Publish Mayday.apk to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view android-latest >/dev/null 2>&1; then
+            gh release upload android-latest Mayday.apk --clobber
+          else
+            gh release create android-latest Mayday.apk \
+              --title "MayDay Android APK (Latest)" \
+              --notes "Standalone Android APK (separate from the web PWA) with pre-filled emergency dialer (ACTION_DIAL) and native Home Screen Widgets (MayDay Quick Dial 4x2 + Compact Contact & 112)."
+          fi

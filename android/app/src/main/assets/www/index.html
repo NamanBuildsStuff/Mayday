@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#08080a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="MayDay — Emergency Call & Live Disaster Map for Patiala · Thapar." />
+
+  <title>Mayday</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- ==================== TOPBAR ==================== -->
+  <header class="topbar">
+    <div class="brand-group">
+      <h1 class="brand-title">Mayday<span class="brand-title-accent">.</span></h1>
+    </div>
+
+    <!-- Desktop Icon-Led Navigation -->
+    <nav class="desktop-nav" aria-label="Main navigation">
+      <button id="dnav-home" type="button" onclick="switchView('home')" class="nav-tab is-active">
+        <i class="ph-bold ph-phone-call"></i>
+        <span>Call</span>
+      </button>
+      <button id="dnav-map" type="button" onclick="switchView('map')" class="nav-tab">
+        <i class="ph-bold ph-map-trifold"></i>
+        <span>Map</span>
+        <span id="dnav-map-count" class="nav-count">0</span>
+      </button>
+      <button id="dnav-verify" type="button" onclick="switchView('verify')" class="nav-tab">
+        <i class="ph-bold ph-seal-check"></i>
+        <span>Verify</span>
+        <span id="dnav-pending-count" class="nav-count nav-count--amber">0</span>
+      </button>
+    </nav>
+
+    <!-- Minimal Right Icon Controls -->
+    <div class="topbar-actions">
+      <div class="dropdown-wrap">
+        <button id="btn-stats-dropdown" type="button" onclick="toggleStatsDropdown()" class="btn btn--pill" aria-expanded="false" aria-controls="stats-dropdown-panel" title="Live Telemetry">
+          <span class="live-dot"></span>
+          <span id="summary-active-num" class="mono-num">0</span>
+          <i class="ph-bold ph-caret-down btn-caret"></i>
+        </button>
+
+        <div id="stats-dropdown-panel" class="dropdown-panel is-hidden animate-in">
+          <div class="dropdown-head">
+            <span class="micro-label">Telemetry</span>
+            <span class="micro-label">Patiala &middot; TIET</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-cell">
+              <span class="micro-label">Govt API</span>
+              <span id="stat-govt" class="stat-value stat-value--danger">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="micro-label">Verified</span>
+              <span id="stat-verified" class="stat-value stat-value--success">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="micro-label">Pending</span>
+              <span id="stat-pending" class="stat-value stat-value--warning">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="micro-label">Devices</span>
+              <span id="stat-devices" class="stat-value">1</span>
+            </div>
+          </div>
+          <div class="dropdown-footer">
+            <span id="govt-sync-label">Syncing...</span>
+            <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Sync Live APIs" style="width: 26px; height: 26px;">
+              <i id="icon-sync-api" class="ph-bold ph-arrows-clockwise"></i>
+            </button>
+          </div>
+          <div id="api-sources-status" class="api-sources-line"></div>
+        </div>
+      </div>
+
+      <button id="btn-notif-toggle" type="button" onclick="enableBrowserNotifications()" class="btn btn--icon btn--pill" title="Enable live notifications">
+        <i id="icon-notif" class="ph-bold ph-bell"></i>
+      </button>
+
+      <button id="btn-install-pwa" type="button" onclick="promptInstallPWA()" class="btn btn--icon btn--pill btn--primary is-hidden" title="Install App">
+        <i class="ph-bold ph-download-simple"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="app-main">
+
+    <!-- VIEW 1: HOME (MINIMAL LIVE MAP PEEK + ICON DIALER + COMPACT FEED) -->
+    <section id="view-home" class="view-panel">
+      <div class="home-container">
+
+        <!-- Minimalist Live Map Peek on Home -->
+        <div class="home-map-card" onclick="switchView('map')" role="button" tabindex="0" aria-label="Open full disaster map">
+          <div id="home-mini-map"></div>
+
+          <div class="home-map-overlay-top" onclick="event.stopPropagation()">
+            <div class="map-chip">
+              <i class="ph-fill ph-map-pin" style="color: var(--flood);"></i>
+              <select id="home-sector-select" class="sector-select-minimal" onchange="setUserSectorByIndex(this.value)" aria-label="Patiala location"></select>
+            </div>
+            <button type="button" onclick="detectUserGPS()" class="btn btn--icon btn--pill" title="Use Live GPS" style="height: 30px; width: 30px;">
+              <i class="ph-bold ph-crosshair"></i>
+            </button>
+          </div>
+
+          <div class="home-map-overlay-bottom">
+            <span id="patiala-weather-pill" class="map-chip weather-chip">Patiala · Syncing...</span>
+            <span class="expand-map-chip">
+              <i class="ph-bold ph-arrows-out-simple"></i>
+              <span>Map</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Non-Blocking Active Call Strip -->
+        <div id="active-call-strip" class="active-call-strip is-hidden animate-in">
+          <div class="active-call-left">
+            <span class="active-call-dot"></span>
+            <div>
+              <div id="active-call-title" class="active-call-title">Call Active</div>
+              <div id="active-call-sub" class="active-call-sub">Pinging nearby devices...</div>
+            </div>
+          </div>
+          <div class="active-call-actions">
+            <button id="btn-add-call-note" type="button" onclick="openOptionalNoteModal()" class="btn btn--icon" title="Add optional note">
+              <i class="ph-bold ph-note-pencil"></i>
+            </button>
+            <button type="button" onclick="dismissActiveCallStrip()" class="modal-close" aria-label="Dismiss">
+              <i class="ph-bold ph-x"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Minimalist Icon-Heavy Emergency Call Grid -->
+        <div>
+          <div class="section-header">
+            <span class="section-title"><i class="ph-bold ph-phone-call"></i> Emergency Dial</span>
+            <div class="section-actions">
+              <select id="state-select" class="radius-select" onchange="setUserState(this.value)" aria-label="Select state for Police number" title="State (sets Police number)">
+                <option value="PB" selected>Punjab</option>
+                <option value="CH">Chandigarh</option>
+                <option value="HR">Haryana</option>
+                <option value="DL">Delhi</option>
+                <option value="HP">Himachal</option>
+                <option value="UP">Uttar Pradesh</option>
+                <option value="MH">Maharashtra</option>
+                <option value="RJ">Rajasthan</option>
+                <option value="GJ">Gujarat</option>
+                <option value="KA">Karnataka</option>
+                <option value="TN">Tamil Nadu</option>
+                <option value="WB">West Bengal</option>
+                <option value="KL">Kerala</option>
+                <option value="TS">Telangana</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="dialer-grid">
+            <button type="button" class="dial-tile" onclick="triggerEmergencyCall('101', 'Fire')" aria-label="Call 101 Fire">
+              <span class="dial-tile-icon dial-tile-icon--fire"><i class="ph-fill ph-fire"></i></span>
+              <span class="dial-tile-num">101</span>
+              <span class="dial-tile-label">Fire</span>
+            </button>
+
+            <button type="button" class="dial-tile" onclick="triggerEmergencyCall('112', 'Collapse')" aria-label="Call 112 Collapse">
+              <span class="dial-tile-icon dial-tile-icon--collapse"><i class="ph-fill ph-buildings"></i></span>
+              <span class="dial-tile-num">112</span>
+              <span class="dial-tile-label">Collapse</span>
+            </button>
+
+            <button type="button" class="dial-tile" onclick="openMedicalModal()" aria-label="Medical Emergency & Nearby Hospitals">
+              <span class="dial-tile-icon dial-tile-icon--medical"><i class="ph-fill ph-first-aid"></i></span>
+              <span class="dial-tile-num">108</span>
+              <span class="dial-tile-label">Medical</span>
+            </button>
+
+            <button type="button" class="dial-tile" onclick="triggerStatePoliceCall()" aria-label="Call State Police">
+              <span class="dial-tile-icon dial-tile-icon--police"><i class="ph-fill ph-shield"></i></span>
+              <span id="police-tile-num" class="dial-tile-num">112</span>
+              <span id="police-tile-label" class="dial-tile-label">Police &middot; PB</span>
+            </button>
+
+            <button type="button" class="dial-tile" onclick="openOtherEmergencyModal()" aria-label="Other Emergency">
+              <span class="dial-tile-icon dial-tile-icon--other"><i class="ph-fill ph-dots-three-circle"></i></span>
+              <span class="dial-tile-num">112</span>
+              <span class="dial-tile-label">Other</span>
+            </button>
+
+            <div class="dial-tile-wrap">
+              <button type="button" id="ice-dial-tile" class="dial-tile" onclick="handleEmergencyContactTap()" aria-label="Add Emergency Contact">
+                <span class="dial-tile-icon dial-tile-icon--contact"><i id="ice-tile-icon" class="ph-fill ph-user-plus"></i></span>
+                <span id="ice-tile-num" class="dial-tile-num dial-tile-num--contact">+ Add</span>
+                <span id="ice-tile-label" class="dial-tile-label">Contact</span>
+              </button>
+              <button type="button" id="btn-edit-ice" class="tile-edit-btn is-hidden" onclick="openEmergencyContactModal()" title="Edit emergency contact" aria-label="Edit emergency contact">
+                <i class="ph-bold ph-pencil-simple"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Utility Outage Check (Ask Nearby -> Verify -> Resolved?) -->
+        <div>
+          <div class="section-header">
+            <span class="section-title"><i class="ph-bold ph-plugs"></i> Utility Outage Check</span>
+            <span class="micro-label">Ask Nearby</span>
+          </div>
+
+          <div class="outage-grid">
+            <button type="button" class="outage-tile" onclick="reportUtilityOutage('Electricity Outage')">
+              <span class="outage-icon outage-icon--power"><i class="ph-fill ph-lightning-slash"></i></span>
+              <div>
+                <div class="outage-title">Electricity Outage</div>
+                <div class="outage-sub">Check with neighbors</div>
+              </div>
+            </button>
+
+            <button type="button" class="outage-tile" onclick="reportUtilityOutage('Water Outage')">
+              <span class="outage-icon outage-icon--water"><i class="ph-fill ph-drop-slash"></i></span>
+              <div>
+                <div class="outage-title">Water Outage</div>
+                <div class="outage-sub">Check with neighbors</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Compact Icon Feeds -->
+        <div class="home-split">
+          <div>
+            <div class="section-header">
+              <span class="section-title"><i class="ph-bold ph-seal-warning" style="color: var(--danger);"></i> Govt Alerts</span>
+              <div class="section-actions">
+                <select id="home-govt-radius" class="radius-select" onchange="setGovtRadius(this.value)" aria-label="Govt alert scope radius" title="Govt alert radius">
+                  <option value="5">5 km</option>
+                  <option value="10" selected>10 km</option>
+                  <option value="25">25 km</option>
+                  <option value="100">100 km</option>
+                  <option value="500">500 km</option>
+                  <option value="0">All</option>
+                </select>
+                <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Refresh" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-arrows-clockwise"></i>
+                </button>
+              </div>
+            </div>
+            <div id="home-govt-alerts" class="alert-list"></div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <span class="section-title"><i class="ph-bold ph-seal-check" style="color: var(--warning);"></i> Verify Nearby</span>
+              <div class="section-actions">
+                <button type="button" onclick="clearAllDemoReports()" class="btn btn--icon btn--danger-ghost" title="Clear all demo reports" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-trash"></i>
+                </button>
+                <button type="button" onclick="switchView('verify')" class="btn btn--icon" title="All verification requests" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-arrow-right"></i>
+                </button>
+              </div>
+            </div>
+            <div id="home-pending-list" class="alert-list"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- VIEW 2: FULL DISASTER MAP -->
+    <section id="view-map" class="view-panel view-panel--map is-hidden">
+      <div class="map-canvas-wrap">
+        <div id="map"></div>
+
+        <div class="map-filter-bar">
+          <button type="button" data-source="all" onclick="setSourceFilter('all')" class="filter-pill is-active">All</button>
+          <button type="button" data-source="govt_api" onclick="setSourceFilter('govt_api')" class="filter-pill">
+            <span class="dot dot--govt"></span>Govt
+          </button>
+          <button type="button" data-source="verified" onclick="setSourceFilter('verified')" class="filter-pill">
+            <span class="dot dot--verified"></span>Verified
+          </button>
+          <button type="button" data-source="pending" onclick="setSourceFilter('pending')" class="filter-pill">
+            <span class="dot dot--pending"></span>Pending
+          </button>
+        </div>
+
+        <div class="map-legend">
+          <div class="legend-row"><span class="dot dot--govt"></span><span>Govt</span></div>
+          <div class="legend-row"><span class="dot dot--verified"></span><span>Verified</span></div>
+          <div class="legend-row"><span class="dot dot--pending"></span><span>Pending</span></div>
+          <div class="legend-row"><span class="dot dot--self"></span><span>You</span></div>
+        </div>
+
+        <button type="button" onclick="recenterMap()" title="Recenter on Patiala" class="recenter-btn">
+          <i class="ph-bold ph-crosshair"></i>
+        </button>
+      </div>
+
+      <aside id="map-inspector" class="map-inspector">
+        <button type="button" onclick="closeMobileInspector()" class="inspector-mobile-close">
+          <i class="ph-bold ph-arrow-left"></i> Map
+        </button>
+        <div id="inspector-body"></div>
+      </aside>
+    </section>
+
+    <!-- VIEW 3: VERIFY & OFFICIAL FEED -->
+    <section id="view-verify" class="view-panel is-hidden">
+      <div class="verify-container">
+        <div class="policy-pill">
+          <i class="ph-bold ph-shield-check"></i>
+          <span>Zero AI &middot; Zero Scraping &middot; 2 Confirmations = Verified &middot; Govt APIs = Alert Only</span>
+        </div>
+
+        <div class="verify-grid">
+          <div>
+            <div class="section-header">
+              <span class="section-title"><i class="ph-bold ph-users"></i> User Reports</span>
+              <div class="section-actions">
+                <span class="micro-label">2/2</span>
+                <button type="button" onclick="clearAllDemoReports()" class="btn btn--icon btn--danger-ghost" title="Clear all demo reports" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-trash"></i>
+                </button>
+              </div>
+            </div>
+            <div id="verify-user-list" class="alert-list"></div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <span class="section-title"><i class="ph-bold ph-broadcast"></i> Official APIs</span>
+              <div class="section-actions">
+                <select id="verify-govt-radius" class="radius-select" onchange="setGovtRadius(this.value)" aria-label="Official API scope radius" title="Govt alert radius">
+                  <option value="5">5 km</option>
+                  <option value="10" selected>10 km</option>
+                  <option value="25">25 km</option>
+                  <option value="100">100 km</option>
+                  <option value="500">500 km</option>
+                  <option value="0">All</option>
+                </select>
+                <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn btn--icon" title="Refresh APIs" style="width: 26px; height: 26px;">
+                  <i class="ph-bold ph-arrows-clockwise"></i>
+                </button>
+              </div>
+            </div>
+            <div id="verify-govt-list" class="alert-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MOBILE BOTTOM NAV ==================== -->
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <button id="mnav-home" type="button" onclick="switchView('home')" class="mobile-nav-btn is-active">
+      <i class="ph-bold ph-phone-call"></i>
+      <span>Call</span>
+    </button>
+    <button id="mnav-map" type="button" onclick="switchView('map')" class="mobile-nav-btn">
+      <i class="ph-bold ph-map-trifold"></i>
+      <span>Map</span>
+    </button>
+    <button id="mnav-verify" type="button" onclick="switchView('verify')" class="mobile-nav-btn">
+      <i class="ph-bold ph-seal-check"></i>
+      <span>Verify</span>
+    </button>
+  </nav>
+
+  <!-- ==================== MODAL 1: OPTIONAL CALLER NOTE ==================== -->
+  <div id="call-report-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'call-report-modal')">
+    <div class="modal-card animate-in" role="dialog" aria-modal="true" aria-labelledby="call-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="call-modal-title" class="modal-title">Add Note</h3>
+          <p class="modal-sub">Nearby devices were already pinged via GPS.</p>
+        </div>
+        <button type="button" onclick="closeModal('call-report-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="call-status-pill">
+        <div class="call-status-left">
+          <i class="ph-bold ph-phone-outgoing" style="color: var(--danger);"></i>
+          <span id="call-modal-service">Simulated Call</span>
+        </div>
+        <span id="call-modal-tel-link" class="call-status-num">Demo &middot; 112</span>
+      </div>
+
+      <div class="form-group">
+        <textarea id="report-notes-input" rows="3" class="input-field" placeholder="Optional details (e.g., smoke visible near COS Market)..."></textarea>
+      </div>
+
+      <button type="button" onclick="saveOptionalCallNote()" class="btn btn--primary btn--full">
+        <i class="ph-bold ph-check"></i>
+        <span>Save Note</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 1B: INCOMING LIVE VERIFICATION PING ==================== -->
+  <div id="incoming-ping-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'incoming-ping-modal')">
+    <div class="modal-card modal-card--ping animate-in" role="dialog" aria-modal="true" aria-labelledby="ping-modal-title">
+      <div class="modal-header">
+        <div>
+          <div class="ping-badge-row">
+            <span class="ping-live-dot"></span>
+            <span id="ping-eyebrow" class="micro-label" style="color: var(--warning);">Verify Nearby Call</span>
+          </div>
+          <h3 id="ping-modal-title" class="modal-title" style="margin-top: 3px;">Can you confirm this?</h3>
+        </div>
+        <button type="button" onclick="closeModal('incoming-ping-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="ping-detail-box">
+        <div class="badge-row" id="ping-badges"></div>
+        <div id="ping-location" class="incident-title"></div>
+        <div id="ping-meta" class="incident-meta"></div>
+        <p id="ping-desc" class="incident-desc"></p>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-ping-confirm" type="button" onclick="respondToIncomingPing('confirmed')" class="btn btn--success-outline" style="flex: 1; height: 38px;">
+          <i class="ph-bold ph-check"></i>
+          <span id="label-ping-confirm">Confirm</span>
+        </button>
+        <button id="btn-ping-false" type="button" onclick="respondToIncomingPing('false')" class="btn" style="flex: 1; height: 38px;">
+          <i class="ph-bold ph-x"></i>
+          <span id="label-ping-false">False</span>
+        </button>
+      </div>
+
+      <button type="button" onclick="viewIncomingPingOnMap()" class="btn btn--full">
+        <i class="ph-bold ph-map-pin"></i>
+        <span>View on Map</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 1C: OTHER EMERGENCY (ASK -> CALL & PING) ==================== -->
+  <div id="other-emergency-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'other-emergency-modal')">
+    <div class="modal-card animate-in" role="dialog" aria-modal="true" aria-labelledby="other-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="other-modal-title" class="modal-title">What is the emergency?</h3>
+          <p class="modal-sub">Specify briefly, then place the 112 call and notify nearby users.</p>
+        </div>
+        <button type="button" onclick="closeModal('other-emergency-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="quick-chips">
+        <button type="button" class="quick-chip" onclick="pickOtherChip('Gas Leak')">Gas Leak</button>
+        <button type="button" class="quick-chip" onclick="pickOtherChip('Road Accident')">Road Accident</button>
+        <button type="button" class="quick-chip" onclick="pickOtherChip('Fallen Tree / Wire')">Fallen Tree / Wire</button>
+        <button type="button" class="quick-chip" onclick="pickOtherChip('Trapped in Lift')">Trapped in Lift</button>
+      </div>
+
+      <div class="form-group">
+        <input id="other-emergency-input" type="text" class="input-field" placeholder="Describe emergency (e.g., LPG leak near Hostel M)..." />
+      </div>
+
+      <button type="button" onclick="submitOtherEmergencyCall()" class="btn btn--danger btn--full">
+        <i class="ph-bold ph-phone-outgoing"></i>
+        <span>Call 112 &amp; Alert Nearby</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 1D: MEDICAL EMERGENCY (HOSPITALS + OPT-IN ALERT) ==================== -->
+  <div id="medical-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'medical-modal')">
+    <div class="modal-card animate-in" role="dialog" aria-modal="true" aria-labelledby="med-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="med-modal-title" class="modal-title">Medical Emergency</h3>
+          <p class="modal-sub">Nearby hospitals sorted by distance &middot; Private by default.</p>
+        </div>
+        <button type="button" onclick="closeModal('medical-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <button type="button" onclick="callHospitalNumber('108', 'Ambulance 108')" class="btn btn--danger btn--full">
+        <i class="ph-bold ph-phone-call"></i>
+        <span>Call Ambulance (108)</span>
+      </button>
+
+      <div class="form-group">
+        <span class="micro-label">Hospitals Near You</span>
+        <div id="medical-hospitals-list" class="hospital-list"></div>
+      </div>
+
+      <div class="medical-optin-box">
+        <div class="micro-label">Optional Community Alert</div>
+        <p class="incident-desc" style="font-size: 11px;">
+          Medical calls are <strong>not</strong> broadcast or verified automatically. Only alert nearby users if you want immediate local assistance.
+        </p>
+        <input id="medical-alert-note" type="text" class="input-field" placeholder="Optional note (e.g., need vehicle near Thapar Gate)..." />
+        <button type="button" onclick="pushOptionalMedicalAlert()" class="btn btn--warning-outline btn--full">
+          <i class="ph-bold ph-broadcast"></i>
+          <span>Push Alert to Nearby Users</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 1E: PERSONAL EMERGENCY CONTACT ==================== -->
+  <div id="ice-contact-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'ice-contact-modal')">
+    <div class="modal-card animate-in" role="dialog" aria-modal="true" aria-labelledby="ice-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="ice-modal-title" class="modal-title">Save Emergency Contact</h3>
+          <p class="modal-sub">Stored privately on your device. Every tap after calls this contact directly.</p>
+        </div>
+        <button type="button" onclick="closeModal('ice-contact-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label for="ice-name-input" class="form-label">Contact Name</label>
+        <input id="ice-name-input" type="text" class="input-field" maxlength="32" placeholder="e.g., Mom, Dad, Roommate" />
+      </div>
+
+      <div class="form-group">
+        <label for="ice-phone-input" class="form-label">Phone Number</label>
+        <input id="ice-phone-input" type="tel" class="input-field" maxlength="20" placeholder="e.g., +91 98150 00000" onkeydown="if (event.key === 'Enter') saveEmergencyContact();" />
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-remove-ice" type="button" onclick="removeEmergencyContact()" class="btn btn--danger-ghost is-hidden" style="height: 38px; padding: 0 13px;">
+          <i class="ph-bold ph-trash"></i>
+          <span>Remove</span>
+        </button>
+        <button type="button" onclick="saveEmergencyContact()" class="btn btn--primary" style="flex: 1; height: 38px;">
+          <i class="ph-bold ph-check"></i>
+          <span>Save Contact</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 2: SELF-ENDANGERMENT DANGER WARNING ==================== -->
+  <div id="danger-warning-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'danger-warning-modal')">
+    <div class="modal-card modal-card--danger animate-in" role="dialog" aria-modal="true" aria-labelledby="danger-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="danger-modal-title" class="modal-title" style="color: #fca5a5;">Personal Safety Warning</h3>
+          <p class="modal-sub" id="danger-modal-target">Minor incident support</p>
+        </div>
+        <button type="button" onclick="closeModal('danger-warning-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="danger-box">
+        <div class="danger-box-title">
+          <i class="ph-fill ph-warning-octagon"></i>
+          <span>Reminder: You Are Endangering Yourself</span>
+        </div>
+        <p class="danger-box-text">
+          Approaching an active emergency puts your own life at serious risk. Professional responders are trained for this — <strong>you are not</strong>.
+        </p>
+        <ul class="danger-list">
+          <li><strong>Never enter</strong> burning buildings, smoke, flood currents, or unstable structures.</li>
+          <li>Only provide <strong>minimal safe-distance help</strong> (clearing lanes for fire engines, guiding ambulances, warning bystanders).</li>
+          <li>Leave immediately if conditions worsen.</li>
+        </ul>
+      </div>
+
+      <label class="checkbox-ack">
+        <input id="danger-ack-checkbox" type="checkbox" onchange="toggleDangerProceedBtn()" />
+        <span>I understand I am <strong>endangering myself</strong>, will stay outside the hazard zone, and will only provide minimal safe help.</span>
+      </label>
+
+      <div style="display: flex; gap: 8px;">
+        <button type="button" onclick="closeModal('danger-warning-modal')" class="btn" style="flex: 1; height: 38px;">
+          Stay Safe
+        </button>
+        <button id="btn-danger-proceed" type="button" onclick="confirmMinimalHelp()" class="btn btn--danger" style="flex: 1; height: 38px;" disabled>
+          Proceed
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

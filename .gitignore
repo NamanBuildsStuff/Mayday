@@ -6,3 +6,10 @@ __pycache__/
 
 # Keep legacy single-file prototype (contains old prototype key) out of public GitHub repo
 crisispulse_disaster_relief_command_center.html
+
+# Android local build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+Mayday.apk
