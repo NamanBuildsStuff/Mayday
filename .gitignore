@@ -1,0 +1,8 @@
+# Local SQLite database & Python cache
+mayday.db
+__pycache__/
+*.pyc
+.DS_Store
+
+# Keep legacy single-file prototype (contains old prototype key) out of public GitHub repo
+crisispulse_disaster_relief_command_center.html

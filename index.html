@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#09090b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="MayDay PWA — Emergency calling, community verification, and official government disaster alerts for Patiala & Thapar." />
+
+  <title>MayDay — Emergency Call &amp; Disaster Alert</title>
+
+  <!-- PWA Manifest & Icon -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <!-- Pure Standard CSS -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- ==================== TOP COMMAND BAR ==================== -->
+  <header class="topbar">
+    <div class="brand-group">
+      <div class="brand-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5.6 5.6C2.1 9.1 2.1 14.9 5.6 18.4" stroke="#71717A" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M18.4 5.6C21.9 9.1 21.9 14.9 18.4 18.4" stroke="#71717A" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M8.5 8.5C6.6 10.4 6.6 13.6 8.5 15.5" stroke="#D4D4D8" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M15.5 8.5C17.4 10.4 17.4 13.6 15.5 15.5" stroke="#D4D4D8" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="2.7" fill="#EF4444"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1 class="brand-title">May<span class="brand-title-accent">Day</span></h1>
+        <span class="brand-divider"></span>
+        <span class="brand-sector">Patiala &middot; Thapar</span>
+      </div>
+    </div>
+
+    <!-- Desktop Primary View Switcher -->
+    <nav class="desktop-nav" aria-label="Main navigation">
+      <button id="dnav-home" type="button" onclick="switchView('home')" class="nav-tab is-active">
+        <i class="ph-bold ph-phone-call"></i>
+        <span>Emergency Call</span>
+      </button>
+      <button id="dnav-map" type="button" onclick="switchView('map')" class="nav-tab">
+        <i class="ph-bold ph-map-trifold"></i>
+        <span>Disaster Map</span>
+        <span id="dnav-map-count" class="nav-count">0</span>
+      </button>
+      <button id="dnav-verify" type="button" onclick="switchView('verify')" class="nav-tab">
+        <i class="ph-bold ph-seal-check"></i>
+        <span>Verify &amp; Alerts</span>
+        <span id="dnav-pending-count" class="nav-count nav-count--amber">0</span>
+      </button>
+    </nav>
+
+    <!-- Right Actions: Expandable Telemetry Dropdown + PWA Install -->
+    <div class="topbar-actions">
+      <div class="dropdown-wrap">
+        <button id="btn-stats-dropdown" type="button" onclick="toggleStatsDropdown()" class="btn" aria-expanded="false" aria-controls="stats-dropdown-panel">
+          <span class="live-dot"></span>
+          <span><span id="summary-active-num" class="mono-num">0</span> Active</span>
+          <i class="ph-bold ph-caret-down btn-caret"></i>
+        </button>
+
+        <div id="stats-dropdown-panel" class="dropdown-panel is-hidden animate-in">
+          <div class="dropdown-head">
+            <span class="micro-label">Sector Status</span>
+            <span class="micro-label">No ML &middot; Direct &amp; API</span>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-cell">
+              <span class="micro-label">Official Govt API</span>
+              <span id="stat-govt" class="stat-value stat-value--danger">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="micro-label">Community Verified</span>
+              <span id="stat-verified" class="stat-value stat-value--success">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="micro-label">Pending Verify</span>
+              <span id="stat-pending" class="stat-value stat-value--warning">0</span>
+            </div>
+            <div class="stat-cell">
+              <span class="micro-label">Live Devices</span>
+              <span id="stat-devices" class="stat-value">1</span>
+            </div>
+          </div>
+          <div class="dropdown-footer">
+            <span id="govt-sync-label">Syncing live APIs...</span>
+            <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn" style="height: 26px; padding: 0 8px; font-size: 11px;">
+              <i id="icon-sync-api" class="ph-bold ph-arrows-clockwise"></i>
+              <span>Sync Live</span>
+            </button>
+          </div>
+          <div id="api-sources-status" style="margin-top: 8px; font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); line-height: 1.6;"></div>
+        </div>
+      </div>
+
+      <button id="btn-notif-toggle" type="button" onclick="enableBrowserNotifications()" class="btn" title="Enable live alert notifications on this device">
+        <i id="icon-notif" class="ph-bold ph-bell"></i>
+        <span id="label-notif" class="brand-sector">Alerts</span>
+      </button>
+
+      <button id="btn-install-pwa" type="button" onclick="promptInstallPWA()" class="btn btn--primary is-hidden">
+        <i class="ph-bold ph-download-simple"></i>
+        <span>Install App</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="app-main">
+
+    <!-- VIEW 1: HOME SCREEN (EMERGENCY CALLING + LIVE AWARENESS) -->
+    <section id="view-home" class="view-panel">
+      <div class="home-container">
+        <div class="home-hero">
+          <div class="home-hero-top">
+            <div>
+              <h2 class="home-title">Emergency Call &amp; Alert</h2>
+              <p class="home-subtitle">
+                Tap an emergency service to dial authorities directly. In parallel, MayDay notifies nearby users to verify the incident and update the live awareness map.
+              </p>
+              <div id="patiala-weather-pill" class="incident-meta" style="margin-top: 8px;">
+                Patiala &middot; Thapar live station: syncing...
+              </div>
+            </div>
+            <div class="location-pill-bar">
+              <select id="home-sector-select" class="sector-select" onchange="setUserSectorByIndex(this.value)" aria-label="Select your Patiala sector"></select>
+              <button type="button" onclick="detectUserGPS()" class="btn">
+                <i class="ph-bold ph-crosshair"></i>
+                <span>GPS</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Non-Blocking Active Call Status Strip (Auto-Pings Nearby Devices Immediately) -->
+        <div id="active-call-strip" class="active-call-strip is-hidden animate-in">
+          <div class="active-call-left">
+            <span class="active-call-dot"></span>
+            <div>
+              <div id="active-call-title" class="active-call-title">Call Placed (Demo Safe)</div>
+              <div id="active-call-sub" class="active-call-sub">Capturing GPS &amp; pinging nearby devices automatically...</div>
+            </div>
+          </div>
+          <div class="active-call-actions">
+            <button id="btn-add-call-note" type="button" onclick="openOptionalNoteModal()" class="btn" style="height: 30px;">
+              <i class="ph-bold ph-note-pencil"></i>
+              <span>Add Note (Optional)</span>
+            </button>
+            <button type="button" onclick="dismissActiveCallStrip()" class="modal-close" aria-label="Dismiss">
+              <i class="ph-bold ph-x"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Emergency Dialer Grid -->
+        <div>
+          <div class="section-header">
+            <span class="section-title">Direct Emergency Numbers (India / Punjab)</span>
+            <span class="micro-label">Tap to Call + Alert Nearby</span>
+          </div>
+
+          <div class="dialer-grid">
+            <button type="button" class="dial-card dial-card--sos" onclick="triggerEmergencyCall('112', 'General Emergency', 'minor')">
+              <div class="dial-card-top">
+                <span class="dial-icon dial-icon--sos"><i class="ph-bold ph-siren"></i></span>
+                <span class="dial-number">112</span>
+              </div>
+              <div>
+                <div class="dial-name">National Emergency</div>
+                <div class="dial-desc">Police, Fire &amp; Medical unified dispatch</div>
+              </div>
+              <div class="dial-cta-row">
+                <span>Call 112 &amp; log alert</span>
+                <i class="ph-bold ph-phone-outgoing"></i>
+              </div>
+            </button>
+
+            <button type="button" class="dial-card" onclick="triggerEmergencyCall('101', 'Fire', 'minor')">
+              <div class="dial-card-top">
+                <span class="dial-icon dial-icon--fire"><i class="ph-bold ph-fire"></i></span>
+                <span class="dial-number">101</span>
+              </div>
+              <div>
+                <div class="dial-name">Fire Brigade</div>
+                <div class="dial-desc">Building fire, short-circuit, smoke hazard</div>
+              </div>
+              <div class="dial-cta-row">
+                <span>Call 101 &amp; log fire</span>
+                <i class="ph-bold ph-phone-outgoing"></i>
+              </div>
+            </button>
+
+            <button type="button" class="dial-card" onclick="triggerEmergencyCall('112', 'Collapse', 'minor')">
+              <div class="dial-card-top">
+                <span class="dial-icon dial-icon--collapse"><i class="ph-bold ph-buildings"></i></span>
+                <span class="dial-number">112</span>
+              </div>
+              <div>
+                <div class="dial-name">Collapse &amp; Trapped</div>
+                <div class="dial-desc">Wall/building collapse, debris rescue</div>
+              </div>
+              <div class="dial-cta-row">
+                <span>Call 112 &amp; log collapse</span>
+                <i class="ph-bold ph-phone-outgoing"></i>
+              </div>
+            </button>
+
+            <button type="button" class="dial-card" onclick="triggerEmergencyCall('108', 'Medical', 'minor')">
+              <div class="dial-card-top">
+                <span class="dial-icon dial-icon--medical"><i class="ph-bold ph-first-aid"></i></span>
+                <span class="dial-number">108</span>
+              </div>
+              <div>
+                <div class="dial-name">Ambulance &amp; Trauma</div>
+                <div class="dial-desc">Medical emergency, injuries, road crash</div>
+              </div>
+              <div class="dial-cta-row">
+                <span>Call 108 &amp; log medical</span>
+                <i class="ph-bold ph-phone-outgoing"></i>
+              </div>
+            </button>
+
+            <button type="button" class="dial-card" onclick="triggerEmergencyCall('1070', 'Flood', 'minor')">
+              <div class="dial-card-top">
+                <span class="dial-icon dial-icon--flood"><i class="ph-bold ph-waves"></i></span>
+                <span class="dial-number">1070</span>
+              </div>
+              <div>
+                <div class="dial-name">Disaster &amp; Flood Relief</div>
+                <div class="dial-desc">State SDRF / flood &amp; waterlogging helpline</div>
+              </div>
+              <div class="dial-cta-row">
+                <span>Call 1070 &amp; log flood</span>
+                <i class="ph-bold ph-phone-outgoing"></i>
+              </div>
+            </button>
+
+            <button type="button" class="dial-card" onclick="triggerEmergencyCall('100', 'Police', 'minor')">
+              <div class="dial-card-top">
+                <span class="dial-icon dial-icon--police"><i class="ph-bold ph-shield"></i></span>
+                <span class="dial-number">100</span>
+              </div>
+              <div>
+                <div class="dial-name">Police Control Room</div>
+                <div class="dial-desc">Public safety, roadblock &amp; crowd control</div>
+              </div>
+              <div class="dial-cta-row">
+                <span>Call 100 &amp; log alert</span>
+                <i class="ph-bold ph-phone-outgoing"></i>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Home Awareness Split: Official Govt Alerts + Pending Nearby Verification -->
+        <div class="home-split">
+          <div>
+            <div class="section-header">
+              <span class="section-title">Official Govt Alerts (Alert Only)</span>
+              <button type="button" onclick="switchView('map')" class="btn" style="height: 26px; padding: 0 9px; font-size: 11px;">
+                View Map
+              </button>
+            </div>
+            <div id="home-govt-alerts" class="alert-list"></div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <span class="section-title">Verify Calls Near You</span>
+              <button type="button" onclick="switchView('verify')" class="btn" style="height: 26px; padding: 0 9px; font-size: 11px;">
+                All Requests
+              </button>
+            </div>
+            <div id="home-pending-list" class="alert-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: LIVE DISASTER MAP (ONLY USER-REPORTED + OFFICIAL GOVT API) -->
+    <section id="view-map" class="view-panel view-panel--map is-hidden">
+      <div class="map-canvas-wrap">
+        <div id="map"></div>
+
+        <!-- Source Filter Bar -->
+        <div class="map-filter-bar">
+          <button type="button" data-source="all" onclick="setSourceFilter('all')" class="filter-pill is-active">All</button>
+          <button type="button" data-source="govt_api" onclick="setSourceFilter('govt_api')" class="filter-pill">
+            <span class="dot dot--govt"></span>Official Govt API
+          </button>
+          <button type="button" data-source="verified" onclick="setSourceFilter('verified')" class="filter-pill">
+            <span class="dot dot--verified"></span>Verified Reports
+          </button>
+          <button type="button" data-source="pending" onclick="setSourceFilter('pending')" class="filter-pill">
+            <span class="dot dot--pending"></span>Pending Verify
+          </button>
+        </div>
+
+        <!-- Legend -->
+        <div class="map-legend">
+          <div class="legend-row"><span class="dot dot--govt"></span><span>Official Govt API (Alert Only)</span></div>
+          <div class="legend-row"><span class="dot dot--verified"></span><span>Community Verified Report</span></div>
+          <div class="legend-row"><span class="dot dot--pending"></span><span>User Call (Pending Verify)</span></div>
+          <div class="legend-row"><span class="dot dot--self"></span><span>Your Location</span></div>
+        </div>
+
+        <!-- Recenter -->
+        <button type="button" onclick="recenterMap()" title="Recenter on Thapar, Patiala" class="recenter-btn">
+          <i class="ph-bold ph-crosshair"></i>
+        </button>
+      </div>
+
+      <!-- Map Incident Inspector Panel -->
+      <aside id="map-inspector" class="map-inspector">
+        <button type="button" onclick="closeMobileInspector()" class="inspector-mobile-close">
+          <i class="ph-bold ph-arrow-left"></i> Back to Map
+        </button>
+        <div id="inspector-body"></div>
+      </aside>
+    </section>
+
+    <!-- VIEW 3: COMMUNITY VERIFICATION & OFFICIAL GOVT API FEED -->
+    <section id="view-verify" class="view-panel is-hidden">
+      <div class="verify-container">
+        <div class="info-banner">
+          <i class="ph-bold ph-shield-check"></i>
+          <div>
+            <strong>Zero AI / Zero Social Scraping Policy:</strong> MayDay only maps incidents from <strong>direct emergency calls verified by nearby users</strong> (2+ confirmations) and <strong>official government APIs</strong> (NDMA / IMD / USGS). Major API crises are strictly <strong>Alert Only</strong>.
+          </div>
+        </div>
+
+        <div class="verify-grid">
+          <div>
+            <div class="section-header">
+              <span class="section-title">User Reports Near Your Area</span>
+              <span class="micro-label">2 Confirmations = Verified</span>
+            </div>
+            <div id="verify-user-list" class="alert-list"></div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <span class="section-title">Official Government API Feed</span>
+              <button type="button" onclick="syncOfficialGovtAPIs(true)" class="btn" style="height: 28px; padding: 0 10px; font-size: 11px;">
+                <i class="ph-bold ph-arrows-clockwise"></i>
+                <span>Refresh APIs</span>
+              </button>
+            </div>
+            <div id="verify-govt-list" class="alert-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MOBILE BOTTOM NAVIGATION ==================== -->
+  <nav class="mobile-nav" aria-label="Mobile navigation">
+    <button id="mnav-home" type="button" onclick="switchView('home')" class="mobile-nav-btn is-active">
+      <i class="ph-bold ph-phone-call"></i>
+      <span>Call</span>
+    </button>
+    <button id="mnav-map" type="button" onclick="switchView('map')" class="mobile-nav-btn">
+      <i class="ph-bold ph-map-trifold"></i>
+      <span>Map</span>
+    </button>
+    <button id="mnav-verify" type="button" onclick="switchView('verify')" class="mobile-nav-btn">
+      <i class="ph-bold ph-seal-check"></i>
+      <span>Verify</span>
+    </button>
+  </nav>
+
+  <!-- ==================== MODAL 1: OPTIONAL CALLER NOTE (NON-BLOCKING) ==================== -->
+  <div id="call-report-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'call-report-modal')">
+    <div class="modal-card animate-in" role="dialog" aria-modal="true" aria-labelledby="call-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="call-modal-title" class="modal-title">Add Optional Details</h3>
+          <p class="modal-sub">
+            Nearby devices were already pinged automatically with your GPS location. Only add a short note if you are safe.
+          </p>
+        </div>
+        <button type="button" onclick="closeModal('call-report-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="call-status-pill">
+        <div class="call-status-left">
+          <i class="ph-bold ph-phone-outgoing" style="color: var(--danger);"></i>
+          <span id="call-modal-service">Simulated Call (Demo Safe Mode)</span>
+        </div>
+        <span id="call-modal-tel-link" class="call-status-num">Demo &middot; 112</span>
+      </div>
+
+      <div class="form-group">
+        <label for="report-notes-input" class="form-label">Brief Note (Optional)</label>
+        <textarea id="report-notes-input" rows="3" class="input-field" placeholder="e.g., Electrical fire near ground floor shop, heavy smoke visible from road."></textarea>
+      </div>
+
+      <button type="button" onclick="saveOptionalCallNote()" class="btn btn--primary btn--full">
+        <i class="ph-bold ph-check"></i>
+        <span>Update Incident Note</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 1B: INCOMING LIVE VERIFICATION PING (OTHER DEVICES) ==================== -->
+  <div id="incoming-ping-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'incoming-ping-modal')">
+    <div class="modal-card modal-card--ping animate-in" role="dialog" aria-modal="true" aria-labelledby="ping-modal-title">
+      <div class="modal-header">
+        <div>
+          <div class="ping-badge-row">
+            <span class="ping-live-dot"></span>
+            <span class="micro-label" style="color: var(--warning);">Live Verification Request</span>
+          </div>
+          <h3 id="ping-modal-title" class="modal-title" style="margin-top: 4px;">Emergency Call Nearby</h3>
+          <p class="modal-sub">
+            Another device just placed an emergency call in your region. Can you verify if this tragedy is real?
+          </p>
+        </div>
+        <button type="button" onclick="closeModal('incoming-ping-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="ping-detail-box">
+        <div class="badge-row" id="ping-badges"></div>
+        <div id="ping-location" class="incident-title"></div>
+        <div id="ping-meta" class="incident-meta"></div>
+        <p id="ping-desc" class="incident-desc"></p>
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-ping-confirm" type="button" onclick="respondToIncomingPing('confirmed')" class="btn btn--success-outline" style="flex: 1; height: 38px;">
+          <i class="ph-bold ph-check"></i>
+          <span>Confirm — I See It</span>
+        </button>
+        <button id="btn-ping-false" type="button" onclick="respondToIncomingPing('false')" class="btn" style="flex: 1; height: 38px;">
+          <i class="ph-bold ph-x"></i>
+          <span>False Alarm</span>
+        </button>
+      </div>
+
+      <button type="button" onclick="viewIncomingPingOnMap()" class="btn btn--full">
+        <i class="ph-bold ph-map-pin"></i>
+        <span>Inspect on Live Map</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 2: SELF-ENDANGERMENT DANGER WARNING ==================== -->
+  <div id="danger-warning-modal" class="modal-backdrop is-hidden" onclick="handleBackdropClick(event, 'danger-warning-modal')">
+    <div class="modal-card modal-card--danger animate-in" role="dialog" aria-modal="true" aria-labelledby="danger-modal-title">
+      <div class="modal-header">
+        <div>
+          <h3 id="danger-modal-title" class="modal-title" style="color: #fca5a5;">Personal Safety Warning</h3>
+          <p class="modal-sub" id="danger-modal-target">Minor incident support confirmation</p>
+        </div>
+        <button type="button" onclick="closeModal('danger-warning-modal')" class="modal-close" aria-label="Close">
+          <i class="ph-bold ph-x"></i>
+        </button>
+      </div>
+
+      <div class="danger-box">
+        <div class="danger-box-title">
+          <i class="ph-fill ph-warning-octagon"></i>
+          <span>Reminder: You Are Endangering Yourself</span>
+        </div>
+        <p class="danger-box-text">
+          Approaching an active emergency puts your own life and health at serious risk. Professional responders are trained and equipped for these hazards — <strong>you are not</strong>.
+        </p>
+        <ul class="danger-list">
+          <li><strong>Never enter</strong> burning buildings, smoke-filled rooms, flood currents, or unstable structures.</li>
+          <li>Only provide <strong>minimal safe-distance help</strong> (clearing access roads for fire trucks, guiding ambulances, warning pedestrians, or offering water/first aid away from the hazard).</li>
+          <li>Leave immediately if smoke, heat, structural creaking, or water levels worsen.</li>
+        </ul>
+      </div>
+
+      <label class="checkbox-ack">
+        <input id="danger-ack-checkbox" type="checkbox" onchange="toggleDangerProceedBtn()" />
+        <span>I clearly understand that I am <strong>endangering myself</strong> by assisting, will stay outside the active hazard zone, and will only provide minimal safe help.</span>
+      </label>
+
+      <div style="display: flex; gap: 8px;">
+        <button type="button" onclick="closeModal('danger-warning-modal')" class="btn" style="flex: 1; height: 38px;">
+          Cancel — Stay Safe
+        </button>
+        <button id="btn-danger-proceed" type="button" onclick="confirmMinimalHelp()" class="btn btn--danger" style="flex: 1; height: 38px;" disabled>
+          Proceed with Caution
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOASTS ==================== -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
