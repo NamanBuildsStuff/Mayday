@@ -109,10 +109,12 @@ def init_db():
         )
         """
     )
-    # Safe migration if upgrading from older table without caller_device_id
+    # Safe migration if upgrading from older table
     cols = [r[1] for r in conn.execute("PRAGMA table_info(user_reports)").fetchall()]
     if "caller_device_id" not in cols:
         conn.execute("ALTER TABLE user_reports ADD COLUMN caller_device_id TEXT NOT NULL DEFAULT ''")
+    if "kind" not in cols:
+        conn.execute("ALTER TABLE user_reports ADD COLUMN kind TEXT NOT NULL DEFAULT 'emergency'")
     conn.commit()
     conn.close()
 
@@ -398,15 +400,22 @@ def collect_official_alerts(force_refresh=False):
 
 SELECT_COLS = (
     "id, category, title, location_name, lat, lng, description, dialed_number, "
-    "status, confirmations, false_flags, minimal_helpers, timestamp_ms, caller_device_id"
+    "status, confirmations, false_flags, minimal_helpers, timestamp_ms, caller_device_id, kind"
 )
 
 
 def row_to_report(row):
+    kind = row[14] if len(row) > 14 and row[14] else "emergency"
+    agency = (
+        "Neighborhood Outage Check"
+        if kind == "outage"
+        else ("Medical Help Request" if kind == "medical_alert" else f"Caller Dialed {row[7]}")
+    )
     return {
         "id": row[0],
         "source": "user_report",
-        "agency": f"Caller Dialed {row[7]}",
+        "kind": kind,
+        "agency": agency,
         "tier": "minor",
         "category": row[1],
         "title": row[2],
@@ -581,16 +590,21 @@ class MayDayHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/reports":
             try:
                 body = self.read_json_body()
-                category = str(body.get("category") or "General Emergency")[:40]
+                category = str(body.get("category") or "Other")[:40]
+                kind = str(body.get("kind") or "emergency")[:24]
+                if kind not in ("emergency", "outage", "medical_alert"):
+                    kind = "emergency"
                 location_name = str(body.get("locationName") or "GPS Coordinates")[:100]
                 lat = float(body.get("lat", PATIALA_LAT))
                 lng = float(body.get("lng", PATIALA_LNG))
-                dialed = re.sub(r"[^0-9+]", "", str(body.get("dialedNumber") or "112"))[:16] or "112"
+                dialed = re.sub(r"[^0-9+-]", "", str(body.get("dialedNumber") or "112"))[:16] or "112"
                 caller_device_id = str(body.get("callerDeviceId") or "")[:64]
+                custom_title = str(body.get("title") or "").strip()[:100]
                 desc = str(body.get("description") or "").strip()[:400]
                 if not desc:
                     desc = f"Automatic alert: A nearby caller pressed {dialed} ({category}) at {location_name}. Nearby users requested to verify."
-                title = f"{category} Call ({dialed})"
+                title = custom_title or f"{category} Call ({dialed})"
+                init_status = "verified" if kind == "medical_alert" else "pending"
                 rep_id = f"USR-{int(time.time() * 1000) % 1000000}"
                 ts_ms = int(time.time() * 1000)
 
@@ -598,10 +612,10 @@ class MayDayHandler(SimpleHTTPRequestHandler):
                 conn.execute(
                     """
                     INSERT INTO user_reports
-                    (id, category, title, location_name, lat, lng, description, dialed_number, status, confirmations, false_flags, minimal_helpers, timestamp_ms, caller_device_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0, 0, ?, ?)
+                    (id, category, title, location_name, lat, lng, description, dialed_number, status, confirmations, false_flags, minimal_helpers, timestamp_ms, caller_device_id, kind)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?)
                     """,
-                    (rep_id, category, title, location_name, lat, lng, desc, dialed, ts_ms, caller_device_id),
+                    (rep_id, category, title, location_name, lat, lng, desc, dialed, init_status, ts_ms, caller_device_id, kind),
                 )
                 conn.commit()
                 row = conn.execute(f"SELECT {SELECT_COLS} FROM user_reports WHERE id = ?", (rep_id,)).fetchone()
@@ -667,6 +681,27 @@ class MayDayHandler(SimpleHTTPRequestHandler):
                     rep = row_to_report(updated)
                     broadcast_event("report_updated", {"report": rep})
                     self.send_json(200, {"dismissed": False, "report": rep})
+            return
+
+        # POST /api/reports/<id>/resolve -> mark utility outage as resolved/restored
+        m_res = re.match(r"^/api/reports/([A-Za-z0-9_-]+)/resolve$", parsed.path)
+        if m_res:
+            rep_id = m_res.group(1)
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.execute(
+                "UPDATE user_reports SET status = 'resolved' WHERE id = ?",
+                (rep_id,),
+            )
+            if cur.rowcount == 0:
+                conn.close()
+                self.send_json(404, {"error": "Report not found"})
+                return
+            conn.commit()
+            updated = conn.execute(f"SELECT {SELECT_COLS} FROM user_reports WHERE id = ?", (rep_id,)).fetchone()
+            conn.close()
+            rep = row_to_report(updated)
+            broadcast_event("report_updated", {"report": rep})
+            self.send_json(200, {"report": rep})
             return
 
         # POST /api/reports/<id>/help

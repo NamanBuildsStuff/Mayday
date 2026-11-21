@@ -673,12 +673,162 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
   font-size: 21px;
 }
 
-.dial-tile-icon--sos { color: var(--danger); border-color: var(--danger-border); background-color: rgba(239, 68, 68, 0.12); }
 .dial-tile-icon--fire { color: var(--fire); }
 .dial-tile-icon--collapse { color: var(--collapse); }
 .dial-tile-icon--medical { color: var(--medical); }
-.dial-tile-icon--flood { color: var(--flood); }
 .dial-tile-icon--police { color: var(--text-primary); }
+.dial-tile-icon--other { color: var(--warning); }
+
+/* Utility Outages 2-Tile Minimal Row */
+.outage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.outage-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.12s ease;
+}
+
+.outage-tile:hover {
+  background-color: var(--bg-elevated);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.outage-tile:active { transform: scale(0.98); }
+
+.outage-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.outage-icon--power { color: var(--warning); }
+.outage-icon--water { color: var(--flood); }
+
+.outage-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.outage-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Quick Chips (Other Emergency Modal) */
+.quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quick-chip {
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  background-color: var(--bg-base);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  transition: all 0.14s ease;
+}
+
+.quick-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background-color: var(--bg-elevated);
+}
+
+/* Nearby Hospitals List (Medical Modal) */
+.hospital-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 245px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.hospital-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+}
+
+.hospital-info { min-width: 0; flex: 1; }
+
+.hospital-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hospital-meta {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.hospital-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.medical-optin-box {
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compact-row--resolved {
+  border-left: 2px solid var(--success);
+  opacity: 0.65;
+}
+
+.badge--resolved {
+  background-color: var(--success-soft);
+  color: var(--success);
+}
+
+.badge--outage {
+  background-color: var(--warning-soft);
+  color: var(--warning);
+}
 
 .dial-tile-num {
   font-family: var(--font-mono);
@@ -1310,7 +1460,7 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 @media (min-width: 640px) {
   .topbar { padding: 0 20px; }
   .home-map-card { height: 220px; }
-  .dialer-grid { grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .dialer-grid { grid-template-columns: repeat(5, 1fr); gap: 10px; }
   .dial-tile { padding: 18px 8px 15px; }
   .map-legend { display: flex; }
   .toast-container { width: auto; }

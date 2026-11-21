@@ -42,8 +42,40 @@ const CATEGORY_META = {
   Medical: { color: '#fb7185', badge: 'badge--medical', icon: 'ph-first-aid', dial: '108' },
   'Storm / Quake': { color: '#f59e0b', badge: 'badge--quake', icon: 'ph-warning-octagon', dial: '1070' },
   'General Emergency': { color: '#ef4444', badge: 'badge--govt', icon: 'ph-siren', dial: '112' },
-  Police: { color: '#a1a1aa', badge: 'badge--govt', icon: 'ph-shield', dial: '100' }
+  Police: { color: '#a1a1aa', badge: 'badge--govt', icon: 'ph-shield', dial: '112' },
+  Other: { color: '#eab308', badge: 'badge--pending', icon: 'ph-warning-circle', dial: '112' },
+  'Electricity Outage': { color: '#eab308', badge: 'badge--outage', icon: 'ph-lightning-slash', dial: '1912' },
+  'Water Outage': { color: '#38bdf8', badge: 'badge--flood', icon: 'ph-drop-slash', dial: '1916' }
 };
+
+// State-specific Police numbers across India (auto-detected via GPS or selectable)
+const STATE_POLICE_NUMBERS = {
+  PB: { name: 'Punjab', number: '112', bounds: [29.5, 32.6, 73.8, 76.9] },
+  CH: { name: 'Chandigarh', number: '112', bounds: [30.65, 30.80, 76.70, 76.85] },
+  HR: { name: 'Haryana', number: '112', bounds: [27.6, 30.9, 74.4, 77.6] },
+  DL: { name: 'Delhi', number: '112', bounds: [28.4, 28.9, 76.8, 77.4] },
+  HP: { name: 'Himachal Pradesh', number: '112', bounds: [30.3, 33.2, 75.6, 79.0] },
+  UP: { name: 'Uttar Pradesh', number: '112', bounds: [23.8, 30.4, 77.0, 84.6] },
+  MH: { name: 'Maharashtra', number: '100', bounds: [15.6, 22.1, 72.6, 80.9] },
+  RJ: { name: 'Rajasthan', number: '100', bounds: [23.0, 30.2, 69.5, 78.3] },
+  GJ: { name: 'Gujarat', number: '100', bounds: [20.1, 24.7, 68.1, 74.5] },
+  KA: { name: 'Karnataka', number: '112', bounds: [11.5, 18.5, 74.0, 78.6] },
+  TN: { name: 'Tamil Nadu', number: '100', bounds: [8.0, 13.6, 76.2, 80.4] },
+  WB: { name: 'West Bengal', number: '100', bounds: [21.5, 27.3, 85.8, 89.9] },
+  KL: { name: 'Kerala', number: '112', bounds: [8.2, 12.8, 74.8, 77.5] },
+  TS: { name: 'Telangana', number: '100', bounds: [15.8, 19.9, 77.2, 81.3] }
+};
+
+// Real Hospitals near Thapar Institute / Patiala
+const NEARBY_HOSPITALS = [
+  { name: 'Thapar Institute Health Centre', tag: 'Campus 24×7 Clinic', phone: '0175-2393021', lat: 30.3554, lng: 76.3694 },
+  { name: 'Manipal (Columbia Asia) Hospital', tag: 'Multi-Specialty · Trauma', phone: '0175-5000222', lat: 30.3488, lng: 76.3708 },
+  { name: 'Amar Hospital, Patiala', tag: 'Emergency · Cardiac', phone: '0175-5016400', lat: 30.3358, lng: 76.3788 },
+  { name: 'Patiala Heart Institute', tag: 'Cardiac Emergency', phone: '0175-2207800', lat: 30.3360, lng: 76.3845 },
+  { name: 'Rajindra Hospital / GMC Patiala', tag: 'Govt Trauma Centre', phone: '0175-2212542', lat: 30.3292, lng: 76.3822 },
+  { name: 'Mata Kaushalya Govt. Hospital', tag: 'District Civil Hospital', phone: '0175-2212101', lat: 30.3275, lng: 76.3976 },
+  { name: 'Park Hospital Patiala', tag: '24×7 ICU & Emergency', phone: '0175-5252525', lat: 30.3405, lng: 76.4255 }
+];
 
 /* ============================================================================
    1. APPLICATION STATE (ZERO FAKE SEED TRAGEDIES)
@@ -73,6 +105,7 @@ const state = {
     lng: PATIALA_SECTORS[0].lng,
     isGPS: false
   },
+  userState: 'PB',             // Drives state-specific Police emergency number
   govtRadiusKm: 10,            // Default 10 km scope for Official Govt Alerts (0 = All)
   officialAlerts: [],          // Live official Govt/Scientific API alerts only
   userReports: [],             // Real call-triggered user reports only
@@ -124,6 +157,35 @@ function setGovtRadius(val) {
   showToast(`Govt alert scope set to ${label}.`, 'info');
 }
 
+function syncStatePoliceUI() {
+  const info = STATE_POLICE_NUMBERS[state.userState] || STATE_POLICE_NUMBERS.PB;
+  const sel = document.getElementById('state-select');
+  if (sel) sel.value = state.userState;
+  const numEl = document.getElementById('police-tile-num');
+  const lblEl = document.getElementById('police-tile-label');
+  if (numEl) numEl.textContent = info.number;
+  if (lblEl) lblEl.textContent = `Police · ${state.userState}`;
+}
+
+function setUserState(code) {
+  if (!STATE_POLICE_NUMBERS[code]) return;
+  state.userState = code;
+  syncStatePoliceUI();
+  saveLocalPrefs();
+  const info = STATE_POLICE_NUMBERS[code];
+  showToast(`Police number updated to ${info.number} (${info.name}).`, 'info');
+}
+
+function detectStateFromCoords(lat, lng) {
+  for (const [code, info] of Object.entries(STATE_POLICE_NUMBERS)) {
+    const [minLat, maxLat, minLng, maxLng] = info.bounds;
+    if (lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng) {
+      return code;
+    }
+  }
+  return state.userState;
+}
+
 function loadLocalPrefs() {
   try {
     const savedLoc = JSON.parse(localStorage.getItem(LOCAL_LOCATION_KEY) || 'null');
@@ -136,6 +198,9 @@ function loadLocalPrefs() {
       state.deletedIds = savedVotes.deleted || {};
       if (typeof savedVotes.govtRadiusKm === 'number') {
         state.govtRadiusKm = savedVotes.govtRadiusKm;
+      }
+      if (savedVotes.userState && STATE_POLICE_NUMBERS[savedVotes.userState]) {
+        state.userState = savedVotes.userState;
       }
     }
   } catch (err) {
@@ -152,7 +217,8 @@ function saveLocalPrefs() {
         votes: state.userVotes,
         helping: state.helpingIds,
         deleted: state.deletedIds,
-        govtRadiusKm: state.govtRadiusKm
+        govtRadiusKm: state.govtRadiusKm,
+        userState: state.userState
       })
     );
     if (!state.backendAvailable) {
@@ -204,6 +270,17 @@ function formatTimeAgo(ts) {
 function getSourceBadge(inc) {
   if (inc.source === 'govt_api') {
     return `<span class="badge badge--govt"><i class="ph-bold ph-seal-warning"></i> Official API</span>`;
+  }
+  if (inc.status === 'resolved') {
+    return `<span class="badge badge--resolved"><i class="ph-bold ph-check-circle"></i> Restored</span>`;
+  }
+  if (inc.kind === 'medical_alert') {
+    return `<span class="badge badge--medical"><i class="ph-bold ph-first-aid"></i> Medical Alert</span>`;
+  }
+  if (inc.kind === 'outage') {
+    return inc.status === 'verified'
+      ? `<span class="badge badge--outage"><i class="ph-bold ph-warning"></i> Active Outage</span>`
+      : `<span class="badge badge--pending"><i class="ph-bold ph-question"></i> Outage Check (${inc.confirmations}/${VERIFICATION_THRESHOLD})</span>`;
   }
   if (inc.status === 'verified') {
     return `<span class="badge badge--verified"><i class="ph-bold ph-check-circle"></i> Verified Report</span>`;
@@ -551,11 +628,13 @@ function detectUserGPS() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       state.userLocation = {
-        name: 'Live GPS Location',
+        name: resolveNearestLabel(pos.coords.latitude, pos.coords.longitude),
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
         isGPS: true
       };
+      state.userState = detectStateFromCoords(pos.coords.latitude, pos.coords.longitude);
+      syncStatePoliceUI();
       populateSectorSelects();
       saveLocalPrefs();
       refreshAll();
@@ -612,7 +691,7 @@ function captureFreshGPS(timeoutMs = 3500) {
   });
 }
 
-async function triggerEmergencyCall(phoneNumber, category) {
+async function triggerEmergencyCall(phoneNumber, category, opts = {}) {
   state.activeCallNumber = phoneNumber;
 
   // 1. Place the call IMMEDIATELY on button press (demo-safe when DEMO_SAFE_CALL_MODE is true)
@@ -625,29 +704,47 @@ async function triggerEmergencyCall(phoneNumber, category) {
     telLink.remove();
   }
 
-  // Show non-blocking call status strip right away — caller does NOT need to fill any form!
+  const displayLabel = opts.customTitle || category;
   const strip = document.getElementById('active-call-strip');
   const titleEl = document.getElementById('active-call-title');
   const subEl = document.getElementById('active-call-sub');
   strip.classList.remove('is-hidden');
   titleEl.textContent = DEMO_SAFE_CALL_MODE
-    ? `Call Placed to ${phoneNumber} (${category}) · Demo Safe Mode`
-    : `Calling ${phoneNumber} (${category})...`;
-  subEl.textContent = 'Locking GPS location & pinging nearby devices automatically...';
+    ? `Call Placed to ${phoneNumber} (${displayLabel}) · Demo Safe`
+    : `Calling ${phoneNumber} (${displayLabel})...`;
+  subEl.textContent = 'Locking GPS & pinging nearby devices automatically...';
 
-  // 2. Completely independent parallel flow: grab GPS & auto-broadcast verification ping
+  // 2. Independent parallel flow: grab GPS & auto-broadcast verification ping
   const loc = await captureFreshGPS(3500);
+  if (loc.freshGPS) {
+    state.userState = detectStateFromCoords(loc.lat, loc.lng);
+    syncStatePoliceUI();
+  }
 
   const payload = {
     category,
+    kind: 'emergency',
+    title: opts.customTitle ? `${opts.customTitle} (${phoneNumber})` : `${category} Call (${phoneNumber})`,
     locationName: loc.name,
     lat: loc.lat,
     lng: loc.lng,
-    description: `Automatic alert: Caller dialed ${phoneNumber} (${category}) at ${loc.name}. Nearby residents requested to verify.`,
+    description: opts.customDesc || `Automatic alert: Caller dialed ${phoneNumber} (${displayLabel}) at ${loc.name}. Nearby residents requested to verify.`,
     dialedNumber: phoneNumber,
     callerDeviceId: DEVICE_ID
   };
 
+  const created = await persistAndBroadcastUserReport(payload);
+  state.lastCalledReportId = created.id;
+  state.selectedId = created.id;
+  saveLocalPrefs();
+  refreshAll();
+
+  const gpsTag = loc.freshGPS ? 'GPS locked' : 'Sector used';
+  subEl.textContent = `${gpsTag}: ${loc.name} · Nearby devices pinged.`;
+  showToast(`Emergency ping sent to nearby devices (${loc.name}).`, 'warning');
+}
+
+async function persistAndBroadcastUserReport(payload) {
   let created = null;
   if (state.backendAvailable) {
     try {
@@ -666,43 +763,197 @@ async function triggerEmergencyCall(phoneNumber, category) {
   }
 
   if (!created) {
+    const isMedical = payload.kind === 'medical_alert';
+    const isOutage = payload.kind === 'outage';
     created = {
       id: 'USR-' + Math.floor(1000 + Math.random() * 8999),
       source: 'user_report',
-      agency: `Caller Dialed ${phoneNumber}`,
+      kind: payload.kind || 'emergency',
+      agency: isOutage ? 'Neighborhood Outage Check' : (isMedical ? 'Medical Help Request' : `Caller Dialed ${payload.dialedNumber}`),
       tier: 'minor',
-      category,
-      title: `${category} Call (${phoneNumber})`,
-      locationName: loc.name,
-      lat: loc.lat,
-      lng: loc.lng,
+      category: payload.category,
+      title: payload.title || `${payload.category} Call (${payload.dialedNumber})`,
+      locationName: payload.locationName,
+      lat: payload.lat,
+      lng: payload.lng,
       radiusMeters: 0,
       description: payload.description,
-      officialGuidance: 'Stay outside the immediate hazard zone and keep roads clear for emergency authorities.',
-      status: 'pending',
+      officialGuidance: isOutage
+        ? 'Confirm if the outage affects your area. Mark Resolved once service returns.'
+        : 'Stay outside the immediate hazard zone and keep roads clear for emergency authorities.',
+      status: isMedical ? 'verified' : 'pending',
       confirmations: 0,
       falseFlags: 0,
       minimalHelpers: 0,
-      dialedNumber: phoneNumber,
+      dialedNumber: payload.dialedNumber || '112',
       callerDeviceId: DEVICE_ID,
       timestamp: Date.now()
     };
   }
 
-  state.lastCalledReportId = created.id;
   upsertUserReport(created);
-  state.selectedId = created.id;
-  saveLocalPrefs();
-  refreshAll();
-
-  // When hosted statically on GitHub Pages, broadcast live via ntfy.sh relay to all devices
   if (!state.backendAvailable) {
     publishRelayEvent({ type: 'new_report', report: created });
   }
+  return created;
+}
 
-  const gpsTag = loc.freshGPS ? 'Live GPS locked' : 'Sector fallback used (enable GPS on phone)';
-  subEl.textContent = `${gpsTag}: ${loc.name} · Nearby devices pinged for verification.`;
-  showToast(`Emergency ping broadcast to nearby devices (${loc.name}).`, 'warning');
+/* --- 5.1 State-Based Police Call --- */
+function triggerStatePoliceCall() {
+  const info = STATE_POLICE_NUMBERS[state.userState] || STATE_POLICE_NUMBERS.PB;
+  triggerEmergencyCall(info.number, 'Police', {
+    customTitle: `Police (${info.name})`,
+    customDesc: `Caller dialed ${info.number} (${info.name} Police). Nearby users asked to confirm if a public safety incident is occurring.`
+  });
+}
+
+/* --- 5.2 Other Emergency Modal (Ask -> Call & Ping) --- */
+function openOtherEmergencyModal() {
+  document.getElementById('other-emergency-input').value = '';
+  document.getElementById('other-emergency-modal').classList.remove('is-hidden');
+  setTimeout(() => document.getElementById('other-emergency-input')?.focus(), 70);
+}
+
+function pickOtherChip(label) {
+  document.getElementById('other-emergency-input').value = label;
+}
+
+function submitOtherEmergencyCall() {
+  const text = document.getElementById('other-emergency-input').value.trim();
+  if (!text) {
+    showToast('Please enter or select what the emergency is first.', 'warning');
+    return;
+  }
+  closeModal('other-emergency-modal');
+  triggerEmergencyCall('112', 'Other', {
+    customTitle: text,
+    customDesc: `Caller dialed 112 reporting: ${text}. Nearby residents asked to verify.`
+  });
+}
+
+/* --- 5.3 Medical Emergency (Nearby Hospitals + Opt-In Community Alert) --- */
+function openMedicalModal() {
+  const listEl = document.getElementById('medical-hospitals-list');
+  listEl.innerHTML = '';
+
+  const sorted = NEARBY_HOSPITALS
+    .map(h => ({ ...h, distKm: calcDistanceKm(state.userLocation.lat, state.userLocation.lng, h.lat, h.lng) }))
+    .sort((a, b) => a.distKm - b.distKm);
+
+  sorted.forEach(h => {
+    const dirUrl = `https://www.google.com/maps/dir/?api=1&origin=${state.userLocation.lat},${state.userLocation.lng}&destination=${h.lat},${h.lng}`;
+    const row = document.createElement('div');
+    row.className = 'hospital-row';
+    row.innerHTML = `
+      <div class="hospital-info">
+        <div class="hospital-name">${escapeHtml(h.name)}</div>
+        <div class="hospital-meta">${formatDistance(h.distKm)} &middot; ${escapeHtml(h.phone)} &middot; ${escapeHtml(h.tag)}</div>
+      </div>
+      <div class="hospital-actions">
+        <button type="button" onclick="callHospitalNumber('${escapeHtml(h.phone)}', '${escapeHtml(h.name)}')" class="btn btn--icon btn--danger" title="Call ${escapeHtml(h.phone)}">
+          <i class="ph-bold ph-phone-call"></i>
+        </button>
+        <a href="${dirUrl}" target="_blank" rel="noopener noreferrer" class="btn btn--icon" title="Directions">
+          <i class="ph-bold ph-navigation-arrow"></i>
+        </a>
+      </div>
+    `;
+    listEl.appendChild(row);
+  });
+
+  document.getElementById('medical-alert-note').value = '';
+  document.getElementById('medical-modal').classList.remove('is-hidden');
+}
+
+function callHospitalNumber(phone, name) {
+  if (!DEMO_SAFE_CALL_MODE) {
+    const a = document.createElement('a');
+    a.href = `tel:${phone}`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  showToast(
+    DEMO_SAFE_CALL_MODE
+      ? `Demo mode: Simulated call to ${name} (${phone}). No real call placed.`
+      : `Dialing ${name} (${phone})...`,
+    'info'
+  );
+}
+
+async function pushOptionalMedicalAlert() {
+  const note = document.getElementById('medical-alert-note').value.trim();
+  closeModal('medical-modal');
+  showToast('Locking GPS & sending optional medical alert...', 'info');
+
+  const loc = await captureFreshGPS(3000);
+  const created = await persistAndBroadcastUserReport({
+    category: 'Medical',
+    kind: 'medical_alert',
+    title: 'Medical Assistance Needed',
+    locationName: loc.name,
+    lat: loc.lat,
+    lng: loc.lng,
+    description: note || `User requested nearby medical assistance at ${loc.name}. No peer verification required.`,
+    dialedNumber: '108',
+    callerDeviceId: DEVICE_ID
+  });
+
+  state.selectedId = created.id;
+  saveLocalPrefs();
+  refreshAll();
+  showToast(`Optional medical alert pushed to nearby users (${loc.name}).`, 'warning');
+}
+
+/* --- 5.4 Electricity & Water Outage Check + "Resolved?" Flow --- */
+async function reportUtilityOutage(outageType) {
+  showToast(`Checking ${outageType.toLowerCase()} with nearby users...`, 'info');
+  const loc = await captureFreshGPS(3000);
+
+  const created = await persistAndBroadcastUserReport({
+    category: outageType,
+    kind: 'outage',
+    title: outageType,
+    locationName: loc.name,
+    lat: loc.lat,
+    lng: loc.lng,
+    description: `Neighbor reported a ${outageType.toLowerCase()} near ${loc.name}. Is it out for you too?`,
+    dialedNumber: outageType === 'Electricity Outage' ? '1912' : '1916',
+    callerDeviceId: DEVICE_ID
+  });
+
+  state.selectedId = created.id;
+  saveLocalPrefs();
+  refreshAll();
+  showToast(`Asked nearby users to confirm ${outageType} near ${loc.name}.`, 'warning');
+}
+
+async function markOutageResolved(id) {
+  const idx = state.userReports.findIndex(r => r.id === id);
+  if (idx === -1) return;
+  const rep = state.userReports[idx];
+  if (rep.status === 'resolved') return;
+
+  rep.status = 'resolved';
+
+  if (state.backendAvailable) {
+    try {
+      const res = await fetch(`/api/reports/${encodeURIComponent(id)}/resolve`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.report) state.userReports[idx] = data.report;
+      }
+    } catch (err) {
+      // Keep local update
+    }
+  } else {
+    publishRelayEvent({ type: 'outage_resolved', id });
+  }
+
+  saveLocalPrefs();
+  refreshAll();
+  showToast(`${rep.title} marked as Restored / Resolved.`, 'success');
 }
 
 function dismissActiveCallStrip() {
@@ -844,10 +1095,20 @@ function sendBrowserNotification(title, body) {
 function showIncomingPingModal(report) {
   state.incomingPingReportId = report.id;
   const distKm = calcDistanceKm(state.userLocation.lat, state.userLocation.lng, report.lat, report.lng);
+  const isOutage = report.kind === 'outage';
+
+  document.getElementById('ping-eyebrow').textContent = isOutage ? 'Utility Outage Check' : 'Verify Nearby Call';
+  document.getElementById('ping-modal-title').textContent = isOutage
+    ? `Is ${report.category.toLowerCase()} happening for you too?`
+    : 'Can you confirm this?';
+  document.getElementById('label-ping-confirm').textContent = isOutage ? 'Yes, Out' : 'Confirm';
+  document.getElementById('label-ping-false').textContent = isOutage ? 'No, Working' : 'False';
 
   document.getElementById('ping-badges').innerHTML = `${getSourceBadge(report)} ${getCategoryBadge(report.category)}`;
   document.getElementById('ping-location').textContent = report.locationName;
-  document.getElementById('ping-meta').textContent = `${formatDistance(distKm)} away · Caller dialed ${report.dialedNumber} · just now`;
+  document.getElementById('ping-meta').textContent = isOutage
+    ? `${formatDistance(distKm)} away · Neighbor outage check · just now`
+    : `${formatDistance(distKm)} away · Caller dialed ${report.dialedNumber} · just now`;
   document.getElementById('ping-desc').textContent = report.description;
 
   const alreadyVoted = Boolean(state.userVotes[report.id]);
@@ -905,12 +1166,30 @@ function applyRelayEvent(evt, isLive) {
     if (isLive && rep.callerDeviceId !== DEVICE_ID) {
       playAlertTone('ping');
       const distKm = calcDistanceKm(state.userLocation.lat, state.userLocation.lng, rep.lat, rep.lng);
-      sendBrowserNotification(
-        `MayDay Verification: ${rep.category} (${rep.dialedNumber})`,
-        `${formatDistance(distKm)} away at ${rep.locationName}. Tap to verify.`
-      );
-      showIncomingPingModal(rep);
-      showToast(`Live nearby call (${rep.category}) at ${rep.locationName} — verification requested!`, 'warning');
+
+      if (rep.kind === 'medical_alert') {
+        // Opt-in medical alert: notify directly without forcing peer verification modal
+        sendBrowserNotification(
+          `MayDay Medical Help Needed`,
+          `${formatDistance(distKm)} away at ${rep.locationName}. ${rep.description}`
+        );
+        showToast(`Medical help alert near ${rep.locationName} (${formatDistance(distKm)} away).`, 'danger');
+      } else {
+        const notifTitle = rep.kind === 'outage'
+          ? `MayDay Outage Check: ${rep.category}`
+          : `MayDay Verification: ${rep.title}`;
+        sendBrowserNotification(
+          notifTitle,
+          `${formatDistance(distKm)} away at ${rep.locationName}. Tap to respond.`
+        );
+        showIncomingPingModal(rep);
+        showToast(
+          rep.kind === 'outage'
+            ? `Neighbor asked: Is ${rep.category.toLowerCase()} happening near ${rep.locationName}?`
+            : `Live nearby call (${rep.title}) at ${rep.locationName} — verify?`,
+          'warning'
+        );
+      }
     }
     return;
   }
@@ -972,6 +1251,17 @@ function applyRelayEvent(evt, isLive) {
     rep.minimalHelpers = (rep.minimalHelpers || 0) + 1;
     saveLocalPrefs();
     refreshAll();
+    return;
+  }
+
+  if (evt.type === 'outage_resolved' && evt.id) {
+    const rep = state.userReports.find(r => r.id === evt.id);
+    if (rep) {
+      rep.status = 'resolved';
+      saveLocalPrefs();
+      refreshAll();
+      if (isLive) showToast(`${rep.title} at ${rep.locationName} marked Restored.`, 'success');
+    }
     return;
   }
 
@@ -1062,12 +1352,17 @@ function connectLiveEventStream() {
     if (report.callerDeviceId !== DEVICE_ID) {
       playAlertTone('ping');
       const distKm = calcDistanceKm(state.userLocation.lat, state.userLocation.lng, report.lat, report.lng);
-      sendBrowserNotification(
-        `MayDay Verification: ${report.category} (${report.dialedNumber})`,
-        `${formatDistance(distKm)} away at ${report.locationName}. Tap to verify.`
-      );
-      showIncomingPingModal(report);
-      showToast(`Live nearby call (${report.category}) at ${report.locationName} — verification requested!`, 'warning');
+      if (report.kind === 'medical_alert') {
+        sendBrowserNotification(`MayDay Medical Help Needed`, `${formatDistance(distKm)} away at ${report.locationName}.`);
+        showToast(`Medical help alert near ${report.locationName} (${formatDistance(distKm)} away).`, 'danger');
+      } else {
+        sendBrowserNotification(
+          report.kind === 'outage' ? `MayDay Outage Check: ${report.category}` : `MayDay Verification: ${report.title}`,
+          `${formatDistance(distKm)} away at ${report.locationName}. Tap to respond.`
+        );
+        showIncomingPingModal(report);
+        showToast(`Live nearby ${report.kind === 'outage' ? 'outage check' : 'call'} at ${report.locationName}!`, 'warning');
+      }
     }
   });
 
@@ -1437,17 +1732,19 @@ function renderInspector() {
   const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${state.userLocation.lat},${state.userLocation.lng}&destination=${inc.lat},${inc.lng}`;
 
   let verifySectionHTML = '';
-  if (!isGovt) {
+  const needsVerify = !isGovt && inc.kind !== 'medical_alert' && inc.status !== 'resolved';
+  if (needsVerify) {
     const pct = Math.min(100, Math.round((inc.confirmations / VERIFICATION_THRESHOLD) * 100));
     const voteDisabled = userVote ? 'disabled' : '';
+    const isOutage = inc.kind === 'outage';
     const voteNote = userVote
-      ? `<span class="micro-label">You marked: ${userVote === 'confirmed' ? 'Confirmed' : 'False Alarm'}</span>`
-      : `<span class="micro-label">Near this area? Help verify</span>`;
+      ? `<span class="micro-label">You marked: ${userVote === 'confirmed' ? (isOutage ? 'Yes, Out' : 'Confirmed') : (isOutage ? 'No, Working' : 'False Alarm')}</span>`
+      : `<span class="micro-label">${isOutage ? 'Is it out in your area too?' : 'Near this area? Help verify'}</span>`;
 
     verifySectionHTML = `
       <div class="inspector-block">
         <div class="incident-card-top">
-          <span class="micro-label">Peer Verification</span>
+          <span class="micro-label">${isOutage ? 'Neighbor Outage Check' : 'Peer Verification'}</span>
           <span class="incident-meta">${inc.confirmations}/${VERIFICATION_THRESHOLD} confirmed</span>
         </div>
         <div class="verify-bar">
@@ -1456,10 +1753,10 @@ function renderInspector() {
         ${voteNote}
         <div class="verify-actions">
           <button type="button" onclick="verifyUserReport('${inc.id}', 'confirmed')" class="btn btn--success-outline" style="flex:1;" ${voteDisabled}>
-            <i class="ph-bold ph-check"></i> Confirm
+            <i class="ph-bold ph-check"></i> ${isOutage ? 'Yes, Out' : 'Confirm'}
           </button>
           <button type="button" onclick="verifyUserReport('${inc.id}', 'false')" class="btn" style="flex:1;" ${voteDisabled}>
-            <i class="ph-bold ph-x"></i> False Alarm
+            <i class="ph-bold ph-x"></i> ${isOutage ? 'No, Working' : 'False Alarm'}
           </button>
         </div>
       </div>
@@ -1486,6 +1783,28 @@ function renderInspector() {
         </button>
       </div>
     `;
+  } else if (inc.kind === 'outage') {
+    if (inc.status === 'resolved') {
+      actionBlockHTML = `
+        <div class="inspector-block">
+          <div class="alert-only-note" style="background-color: var(--success-soft); border-color: var(--success-border); color: var(--success);">
+            <i class="ph-bold ph-check-circle"></i>
+            <span><strong>Service Restored:</strong> Nearby residents reported this outage is resolved.</span>
+          </div>
+        </div>
+      `;
+    } else if (inc.status === 'verified') {
+      actionBlockHTML = `
+        <div class="inspector-block">
+          <span class="micro-label">Outage Status</span>
+          <p class="incident-desc">Confirmed active outage in this area. Is service back for you?</p>
+          <button type="button" onclick="markOutageResolved('${inc.id}')" class="btn btn--success-outline btn--full">
+            <i class="ph-bold ph-check-circle"></i>
+            <span>Resolved? Mark Restored</span>
+          </button>
+        </div>
+      `;
+    }
   } else if (isHelping) {
     actionBlockHTML = `
       <div class="inspector-block">
@@ -1615,8 +1934,13 @@ function renderHomeMiniMap() {
 function renderIncidentCard(inc, { showVerifyControls = false } = {}) {
   const distKm = calcDistanceKm(state.userLocation.lat, state.userLocation.lng, inc.lat, inc.lng);
   const isGovt = inc.source === 'govt_api';
-  const rowMod = isGovt ? 'compact-row--govt' : (inc.status === 'pending' ? 'compact-row--pending' : 'compact-row--verified');
-  const meta = CATEGORY_META[inc.category] || CATEGORY_META['General Emergency'];
+  const isOutage = inc.kind === 'outage';
+  const isMedicalAlert = inc.kind === 'medical_alert';
+  const isResolved = inc.status === 'resolved';
+  const rowMod = isGovt
+    ? 'compact-row--govt'
+    : (isResolved ? 'compact-row--resolved' : (inc.status === 'pending' ? 'compact-row--pending' : 'compact-row--verified'));
+  const meta = CATEGORY_META[inc.category] || CATEGORY_META['Other'];
 
   const row = document.createElement('div');
   row.className = `compact-row ${rowMod} animate-in`;
@@ -1633,27 +1957,53 @@ function renderIncidentCard(inc, { showVerifyControls = false } = {}) {
       </button>
     `;
   } else if (showVerifyControls) {
-    const disabled = state.userVotes[inc.id] ? 'disabled' : '';
-    actionsHTML = `
-      <button type="button" onclick="verifyUserReport('${inc.id}', 'confirmed')" class="btn btn--icon btn--success-outline" title="Confirm (${inc.confirmations}/${VERIFICATION_THRESHOLD})" ${disabled}>
-        <i class="ph-bold ph-check"></i>
-      </button>
-      <button type="button" onclick="verifyUserReport('${inc.id}', 'false')" class="btn btn--icon" title="False Alarm" ${disabled}>
-        <i class="ph-bold ph-x"></i>
-      </button>
-      <button type="button" onclick="deleteUserReport('${inc.id}')" class="btn btn--icon btn--danger-ghost" title="Remove report (demo)">
-        <i class="ph-bold ph-trash"></i>
-      </button>
-    `;
+    if (isOutage && inc.status === 'verified') {
+      actionsHTML = `
+        <button type="button" onclick="markOutageResolved('${inc.id}')" class="btn btn--success-outline" style="height: 28px; padding: 0 9px; font-size: 11px;" title="Mark outage resolved">
+          Resolved?
+        </button>
+        <button type="button" onclick="deleteUserReport('${inc.id}')" class="btn btn--icon btn--danger-ghost" title="Remove report (demo)">
+          <i class="ph-bold ph-trash"></i>
+        </button>
+      `;
+    } else if (isMedicalAlert || isResolved) {
+      actionsHTML = `
+        <button type="button" onclick="selectIncident('${inc.id}', true)" class="btn btn--icon" title="View on Map">
+          <i class="ph-bold ph-map-pin"></i>
+        </button>
+        <button type="button" onclick="deleteUserReport('${inc.id}')" class="btn btn--icon btn--danger-ghost" title="Remove report (demo)">
+          <i class="ph-bold ph-trash"></i>
+        </button>
+      `;
+    } else {
+      const disabled = state.userVotes[inc.id] ? 'disabled' : '';
+      actionsHTML = `
+        <button type="button" onclick="verifyUserReport('${inc.id}', 'confirmed')" class="btn btn--icon btn--success-outline" title="${isOutage ? 'Yes, Out Here' : 'Confirm'} (${inc.confirmations}/${VERIFICATION_THRESHOLD})" ${disabled}>
+          <i class="ph-bold ph-check"></i>
+        </button>
+        <button type="button" onclick="verifyUserReport('${inc.id}', 'false')" class="btn btn--icon" title="${isOutage ? 'No, Working' : 'False Alarm'}" ${disabled}>
+          <i class="ph-bold ph-x"></i>
+        </button>
+        <button type="button" onclick="deleteUserReport('${inc.id}')" class="btn btn--icon btn--danger-ghost" title="Remove report (demo)">
+          <i class="ph-bold ph-trash"></i>
+        </button>
+      `;
+    }
   }
 
   const statusTag = isGovt
     ? 'Alert Only'
-    : (inc.status === 'verified' ? 'Verified' : `${inc.confirmations}/${VERIFICATION_THRESHOLD}`);
+    : (isResolved
+      ? 'Restored'
+      : (isMedicalAlert
+        ? 'Medical Alert'
+        : (inc.status === 'verified'
+          ? (isOutage ? 'Active Outage' : 'Verified')
+          : `${inc.confirmations}/${VERIFICATION_THRESHOLD}`)));
 
   row.innerHTML = `
     <div class="compact-row-left" onclick="selectIncident('${inc.id}', true)">
-      <span class="row-icon" style="color: ${isGovt ? 'var(--danger)' : meta.color};">
+      <span class="row-icon" style="color: ${isGovt ? 'var(--danger)' : (isResolved ? 'var(--success)' : meta.color)};">
         <i class="ph-fill ${meta.icon}"></i>
       </span>
       <div class="row-text">
@@ -1707,14 +2057,14 @@ function renderListsAndStats() {
     govtAlerts.slice(0, 3).forEach(inc => homeGovtEl.appendChild(renderIncidentCard(inc)));
   }
 
-  // Home — Pending Nearby Verification
+  // Home — Pending Nearby Verification & Active Outages
   const homePendingEl = document.getElementById('home-pending-list');
   homePendingEl.innerHTML = '';
-  const homeVerifyItems = pendingReports.length > 0 ? pendingReports : verifiedReports;
+  const homeVerifyItems = [...pendingReports, ...verifiedReports, ...userReports.filter(i => i.status === 'resolved')];
   if (homeVerifyItems.length === 0) {
-    homePendingEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-radar"></i><span>No nearby calls</span></div>`;
+    homePendingEl.innerHTML = `<div class="empty-state"><i class="ph-bold ph-radar"></i><span>No nearby calls or outages</span></div>`;
   } else {
-    homeVerifyItems.slice(0, 3).forEach(inc =>
+    homeVerifyItems.slice(0, 4).forEach(inc =>
       homePendingEl.appendChild(renderIncidentCard(inc, { showVerifyControls: true }))
     );
   }
@@ -1811,6 +2161,7 @@ window.addEventListener('load', async () => {
   loadLocalPrefs();
   populateSectorSelects();
   syncRadiusSelectUI();
+  syncStatePoliceUI();
   updateNotifButtonUI();
   registerPWA();
   initHomeMiniMap();
@@ -1834,6 +2185,8 @@ window.addEventListener('load', async () => {
       closeStatsDropdown();
       closeModal('call-report-modal');
       closeModal('incoming-ping-modal');
+      closeModal('other-emergency-modal');
+      closeModal('medical-modal');
       closeModal('danger-warning-modal');
     }
   });
