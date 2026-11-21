@@ -1442,7 +1442,7 @@ function initHomeMiniMap() {
   });
 
   // Minimalist dark basemap without label clutter for the Home peek
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png?key=cb1_5de2_1_819a0e8faff413028929fbe5', {
     subdomains: 'abcd',
     maxZoom: 18
   }).addTo(homeMap);
